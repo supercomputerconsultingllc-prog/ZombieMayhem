@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07110b">
+  <title>Zombie Mayhem V2.0</title>
+  <link rel="icon" href="data:,">
+  <meta name="description" content="Command a survivor squad through four distinct zombie survival modes, tactical upgrades and evolving weapons.">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell" id="appShell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="eyebrow">V2.0 BETA 2</span>
+        <strong>Zombie Mayhem</strong>
+      </div>
+      <div class="stats" aria-label="Game statistics">
+        <div><span>Squad</span><b id="squadStat">8</b></div>
+        <div><span>Armor</span><b id="armorStat">0</b></div>
+        <div><span>Wave</span><b id="waveStat">1</b></div>
+        <div><span>Distance</span><b id="distanceStat">0</b></div>
+        <div><span>Credits</span><b id="creditsStat">0</b></div>
+        <div><span>Level</span><b id="levelStat">1</b></div>
+      </div>
+      <div class="top-actions">
+        <button id="pauseBtn" class="icon-btn" aria-label="Pause game">Ⅱ</button>
+        <button id="settingsBtn" class="icon-btn" aria-label="Open settings">⚙</button>
+      </div>
+    </header>
+
+    <section class="game-layout">
+      <div class="stage-wrap" id="stageWrap">
+        <canvas id="gameCanvas" width="960" height="720" aria-label="Zombie Mayhem game canvas"></canvas>
+        <div class="weather-layer" id="weatherLayer" aria-hidden="true"></div>
+        <div class="vignette" aria-hidden="true"></div>
+
+        <aside class="mission-card" id="missionCard">
+          <p class="objective" id="objectiveText"></p><div class="mission-head"><span id="modeLabel">Campaign</span><b id="missionReward">+100</b></div>
+          <h2 id="missionTitle">Clear the road</h2>
+          <p id="missionText">Defeat 20 infected.</p>
+          <div class="progress"><i id="missionProgress"></i></div>
+          <small id="missionCount">0 / 20</small>
+        </aside>
+
+        <div class="boss-bar hidden" id="bossBar">
+          <div><strong id="bossName">Mutant Overlord</strong><span id="bossPhase">Phase 1</span></div>
+          <div class="progress danger"><i id="bossHealth"></i></div>
+        </div>
+
+        <div id="tutorialBanner" class="tutorial-banner" hidden><span id="tutorialText"></span><button id="skipTutorial">Skip training</button></div>
+        <button id="evacBtn" class="evac-btn primary" hidden>Call evacuation</button>
+        <div class="combat-feed" id="combatFeed" aria-live="polite"></div>
+        <div class="damage-flash" id="damageFlash" aria-hidden="true"></div>
+      </div>
+
+      <aside class="side-panel">
+        <section class="panel-block">
+          <div class="section-title"><span>Loadout</span><small id="weaponMastery">Mastery 0</small></div>
+          <div class="weapon-grid" id="weaponGrid"></div>
+        </section>
+
+        <section class="panel-block">
+          <div class="section-title"><span>Squad Command</span><small id="upgradePoints">Next draft: wave 2</small></div>
+          <label class="command-label">Formation<select id="formationSelect"></select></label>
+          <div class="specialist-card" id="specialistCard"><b>No specialist</b><span>Recruit one from upgrade drafts.</span></div>
+        </section>
+
+        <section class="panel-block compact">
+          <div class="section-title"><span>Active Effects</span><small id="fpsStat">60 FPS</small></div>
+          <div id="effectList" class="effect-list"><span>None</span></div>
+        </section>
+      </aside>
+    </section>
+
+    <nav class="mobile-controls" aria-label="Mobile controls">
+      <button id="loadoutBtn">Loadout</button>
+      <button id="leftBtn">◀ Lane</button>
+      <button id="abilityBtn">Overdrive</button>
+      <button id="rightBtn">Lane ▶</button>
+    </nav>
+  </main>
+
+  <div class="overlay active" id="overlay">
+    <section class="modal hero" id="titlePanel">
+      <span class="eyebrow">THE NEXT CHAPTER</span>
+      <h1>Zombie Mayhem <em>V2.0</em></h1>
+      <p>Command a survivor squad through adaptive hordes, elite mutations, boss phases, weapon builds, missions, loot, and skill progression.</p>
+      <div class="mode-grid" id="modeGrid">
+        <button data-mode="campaign" class="selected"><b>Campaign</b><span>Four chapters. Four bosses.</span></button>
+        <button data-mode="horde"><b>Endless Horde</b><span>Defend and fortify your base.</span></button>
+        <button data-mode="extraction"><b>Extraction</b><span>Collect supplies. Choose when to leave.</span></button>
+        <button data-mode="bossrush"><b>Boss Rush</b><span>Four fights. Limited recovery.</span></button>
+      </div>
+      <div class="hero-summary">
+        <span>Best <b id="bestDistance">0m</b></span>
+        <span>Account Lv. <b id="accountLevel">1</b></span>
+        <span>Skill Points <b id="skillPoints">0</b></span>
+      </div>
+      <div class="modal-actions">
+        <button id="startBtn" class="primary">Start V2.0 Run</button>
+        <button id="skillsBtn">Skill Trees</button>
+        <button id="saveToolsBtn">Save Tools</button><button id="recordsBtn">Service Record</button>
+      </div>
+      <label class="seed-input">Run seed <input id="runSeed" maxlength="32" aria-label="Run seed" spellcheck="false"></label>
+      <p class="control-guide">Auto-fire · A / D or arrow keys to change lanes · Space for Overdrive · P to pause</p>
+      <a class="legacy-link" href="../index.html">Open preserved V1.2 build</a>
+    </section>
+  </div>
+
+  <template id="settingsTemplate">
+    <section class="modal">
+      <span class="eyebrow">OPTIONS</span>
+      <h2>Settings</h2>
+      <div class="settings-grid">
+        <label>Master Volume <input id="masterVolume" type="range" min="0" max="100"></label>
+        <label>Music Volume <input id="musicVolume" type="range" min="0" max="100"></label>
+        <label>Effects Volume <input id="effectsVolume" type="range" min="0" max="100"></label>
+        <label>Quality <select id="qualitySelect"><option value="auto">Auto</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+        <label class="toggle"><input id="reducedMotion" type="checkbox"> Reduced motion</label>
+        <label class="toggle"><input id="highContrast" type="checkbox"> High contrast</label>
+        <label class="toggle"><input id="damageFlashes" type="checkbox"> Damage flashes</label>
+        <label class="toggle"><input id="screenShake" type="checkbox"> Screen shake</label>
+        <label class="toggle"><input id="damageNumbers" type="checkbox"> Damage numbers</label>
+        <label class="toggle"><input id="gore" type="checkbox"> Blood decals</label>
+      </div>
+      <div class="modal-actions"><button data-close class="primary">Done</button></div>
+    </section>
+  </template>
+
+  <template id="skillsTemplate">
+    <section class="modal wide">
+      <span class="eyebrow">PERSISTENT PROGRESSION</span>
+      <h2>Skill Trees</h2>
+      <p>Spend account skill points. These bonuses apply to every run.</p>
+      <div class="skill-trees" id="skillTrees"></div>
+      <div class="modal-actions"><button data-close class="primary">Done</button></div>
+    </section>
+  </template>
+
+  <template id="saveToolsTemplate">
+    <section class="modal">
+      <span class="eyebrow">LOCAL PROFILE</span>
+      <h2>Save Tools</h2>
+      <p>Export a backup before testing new V2.0 builds or import a previous backup.</p>
+      <p id="saveStatus" role="status"></p><textarea aria-label="Save backup data" id="saveData" rows="8" spellcheck="false" placeholder="Exported save data appears here"></textarea>
+      <div class="modal-actions">
+        <button id="exportSave" class="primary">Export</button>
+        <button id="importSave">Import</button>
+        <button data-close>Done</button>
+      </div>
+    </section>
+  </template>
+
+  <template id="upgradeDraftTemplate">
+    <section class="modal wide draft-modal">
+      <span class="eyebrow">TACTICAL LEVEL UP</span>
+      <h2>Choose one upgrade</h2>
+      <p>The horde is paused while you adapt the squad.</p>
+      <div class="draft-grid" id="draftGrid"></div>
+    </section>
+  </template>
+
+  <script type="module" src="./src/game.js"></script>
+</body>
+</html>
