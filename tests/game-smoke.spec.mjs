@@ -22,6 +22,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('title, settings, start, pause, resume, and restart remain functional', async ({ page }) => {
+  // Several complete menu transitions take longer on mobile WebKit in CI.
+  test.setTimeout(60_000);
   const errors = await collectRuntimeErrors(page);
   await page.goto('/index.html');
 

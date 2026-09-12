@@ -1377,8 +1377,6 @@
       await handleCheckoutReturn();
     }
 
-    initializeProfiles();
-
     function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
     function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
     async function saveMeta(){
@@ -1540,7 +1538,7 @@
       if (!soundOn || volumeLevel <= 0) return;
       const ctxAudio = ensureAudio();
       if (!ctxAudio) return;
-      if (ctxAudio.state === 'suspended') ctxAudio.resume();
+      if (ctxAudio.state === 'suspended') ctxAudio.resume().catch(() => {});
       const osc = ctxAudio.createOscillator();
       const gain = ctxAudio.createGain();
       const now = ctxAudio.currentTime;
@@ -1562,7 +1560,7 @@
       lastShotSoundAt = nowMs;
       const ctxAudio = ensureAudio();
       if (!ctxAudio) return;
-      if (ctxAudio.state === 'suspended') ctxAudio.resume();
+      if (ctxAudio.state === 'suspended') ctxAudio.resume().catch(() => {});
       const now = ctxAudio.currentTime;
 
       const bodyOsc = ctxAudio.createOscillator();
@@ -1605,7 +1603,7 @@
       if (!soundOn || volumeLevel <= 0) return;
       const ctxAudio = ensureAudio();
       if (!ctxAudio) return;
-      if (ctxAudio.state === 'suspended') ctxAudio.resume();
+      if (ctxAudio.state === 'suspended') ctxAudio.resume().catch(() => {});
       const now = ctxAudio.currentTime;
       const base = variant === 'boss' ? 72 : variant === 'shield' ? 82 : variant === 'runner' ? 118 : 96;
 
@@ -5151,6 +5149,8 @@
     applyControlsMode();
     window.addEventListener('resize', applyControlsMode);
     resetGame();
+    // Start profile work only after all lexical state and the initial HUD exist.
+    initializeProfiles();
     refreshMusicState();
     requestAnimationFrame(tick);
   </script>
