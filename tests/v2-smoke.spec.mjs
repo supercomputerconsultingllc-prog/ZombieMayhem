@@ -18,7 +18,7 @@ test('preserved V1.2 and isolated V2.0 both load', async ({ page }) => {
   await expect(page).toHaveTitle('Zombie Mayhem V2.0');
   await expect(page.getByRole('heading', { name: /Zombie Mayhem V2\.0/i })).toBeVisible();
   await expect(page.getByRole('link', { name: /preserved V1\.2 build/i })).toHaveAttribute('href', '../index.html');
-  await expect.poll(() => page.evaluate(() => window.__zombieV2?.version)).toMatch(/^2\.0\.0-alpha\./);
+  await expect.poll(() => page.evaluate(() => window.__zombieV2?.version)).toMatch(/^2\.0\.0-(alpha|beta)\./);
 });
 
 test('V2.0 changes mode, starts, pauses, resumes, and reports runtime state', async ({ page }) => {
@@ -30,7 +30,7 @@ test('V2.0 changes mode, starts, pauses, resumes, and reports runtime state', as
   await page.getByRole('button', { name: 'Start V2.0 Run', exact: true }).click();
 
   await expect.poll(() => page.evaluate(() => window.__zombieV2?.snapshot())).toMatchObject({
-    version: expect.stringMatching(/^2\.0\.0-alpha\./),
+    version: expect.stringMatching(/^2\.0\.0-(alpha|beta)\./),
     mode: 'bossrush',
     running: true,
     paused: false,
@@ -46,6 +46,24 @@ test('V2.0 changes mode, starts, pauses, resumes, and reports runtime state', as
   await expect.poll(() => page.evaluate(() => window.__zombieV2?.snapshot().paused)).toBe(false);
   await expect(page.locator('#gameCanvas')).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('V2.0 exposes deterministic simulation and tactical systems', async ({ page }) => {
+  await page.goto('/v2/index.html');
+  await page.getByRole('button', { name: 'Start V2.0 Run', exact: true }).click();
+  const snapshot = await page.evaluate(() => window.__zombieV2.snapshot());
+  expect(snapshot.seed).toMatch(/^\d{8}$/);
+  expect(snapshot.formation).toBe('wedge');
+  expect(snapshot.biome).toBe('highway');
+  if (await page.locator('#loadoutBtn').isVisible()) {
+    await page.locator('#loadoutBtn').click();
+    await page.locator('#mobileFormation').selectOption('box');
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+  } else {
+    await expect(page.locator('#formationSelect')).toHaveValue('wedge');
+    await page.locator('#formationSelect').selectOption('box');
+  }
+  await expect.poll(() => page.evaluate(() => window.__zombieV2.snapshot().formation)).toBe('box');
 });
 
 test('V2.0 settings persist and accessibility classes apply', async ({ page }) => {

@@ -1,93 +1,88 @@
+const TRACKS = ['bed', 'combat', 'boss'];
+const EFFECTS = ['rifle', 'shotgun', 'sniper', 'minigun', 'flame', 'tesla', 'freeze', 'grenade', 'hit', 'crit', 'kill', 'hurt', 'slam', 'loot', 'mission', 'overdrive'];
+/** Original recorded buffers, synchronized stems, capped voices, separate mix buses. */
 export class AudioDirector {
   constructor(settings) {
-    this.settings = settings;
-    this.ctx = null;
-    this.musicTimer = null;
-    this.musicStep = 0;
-    this.active = new Set();
+    this.settings = settings; this.ctx = null; this.buffers = {}; this.raw = {}; this.voices = new Set();
+    this.stems = []; this.playing = false; this.offset = 0; this.loadPromise = null;
   }
-
-  ensure() {
-    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
-    return this.ctx;
+  async preload() {
+    await Promise.all([...TRACKS, ...EFFECTS].map(async id => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await fetch(new URL(`../assets/audio/${id}.mp3`, import.meta.url), { signal: controller.signal });
+        if (!response.ok) return;
+        this.raw[id] = await response.arrayBuffer();
+      } catch { /* Audio failure must not prevent playing. */ }
+      finally { clearTimeout(timeout); }
+    }));
   }
-
-  volume(channel = 'effects') {
-    const master = this.settings.masterVolume / 100;
-    const local = this.settings[channel === 'music' ? 'musicVolume' : 'effectsVolume'] / 100;
-    return Math.max(0, Math.min(1, master * local));
+  async ensure() {
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) return;
+    if (!this.ctx) {
+      const ctx = this.ctx = new Context();
+      this.master = ctx.createGain(); this.music = ctx.createGain(); this.fx = ctx.createGain();
+      const limiter = ctx.createDynamicsCompressor(); limiter.threshold.value = -8; limiter.knee.value = 6; limiter.ratio.value = 14;
+      this.music.connect(this.master); this.fx.connect(this.master); this.master.connect(limiter).connect(ctx.destination);
+      this.updateSettings(this.settings);
+      this.loadPromise = Promise.all(Object.entries(this.raw).map(async ([id, buffer]) => {
+        try { this.buffers[id] = await ctx.decodeAudioData(buffer.slice(0)); } catch { /* optional missing codec */ }
+      }));
+    }
+    if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {});
+    await this.loadPromise;
   }
-
-  tone(freq = 220, duration = .08, type = 'square', gain = .2, slide = 0) {
-    if (this.volume('effects') <= 0) return;
-    const ctx = this.ensure();
-    const osc = ctx.createOscillator();
-    const amp = ctx.createGain();
-    const now = ctx.currentTime;
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, now);
-    if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(20, freq + slide), now + duration);
-    amp.gain.setValueAtTime(Math.max(.0001, gain * this.volume('effects')), now);
-    amp.gain.exponentialRampToValueAtTime(.0001, now + duration);
-    osc.connect(amp).connect(ctx.destination);
-    osc.start(now); osc.stop(now + duration);
-    this.active.add(osc);
-    osc.onended = () => this.active.delete(osc);
+  async startMusic() {
+    this.playing = true; await this.ensure();
+    if (!this.ctx || !this.playing || this.stems.length) return;
+    const now = this.ctx.currentTime + .02; this.startedAt = now;
+    TRACKS.forEach((id, index) => {
+      const buffer = this.buffers[id]; if (!buffer) return;
+      const source = this.ctx.createBufferSource(), gain = this.ctx.createGain();
+      source.buffer = buffer; source.loop = true; gain.gain.value = index === 0 ? .45 : index === 1 ? .4 : 0;
+      source.connect(gain).connect(this.music); source.start(now, this.offset % buffer.duration);
+      this.stems.push({ id, source, gain });
+    });
   }
-
-  shot(weapon) {
-    const map = {
-      rifle: [165, .045, 'square', .11, -45], shotgun: [105, .11, 'sawtooth', .18, -65],
-      sniper: [240, .16, 'square', .2, -150], minigun: [190, .035, 'square', .07, -20],
-      flame: [75, .07, 'sawtooth', .07, 20], tesla: [720, .12, 'sine', .12, -350],
-      freeze: [520, .11, 'triangle', .1, 180], grenade: [92, .16, 'sawtooth', .18, -50]
-    };
-    this.tone(...(map[weapon] || map.rifle));
+  intensity(boss, enemies) {
+    if (!this.ctx) return;
+    for (const stem of this.stems) {
+      const level = stem.id === 'bed' ? .4 : stem.id === 'boss' ? (boss ? .38 : 0) : .2 + Math.min(.25, enemies * .025);
+      stem.gain.gain.setTargetAtTime(level, this.ctx.currentTime, .6);
+    }
   }
-
-  hit(kind = 'normal') {
-    if (kind === 'crit') this.tone(520, .055, 'square', .11, 240);
-    else if (kind === 'kill') this.tone(95, .08, 'sawtooth', .08, -30);
-    else this.tone(245, .025, 'square', .045, -35);
+  stopMusic(reset = false) {
+    this.playing = false;
+    if (this.ctx && this.stems.length) this.offset += Math.max(0, this.ctx.currentTime - this.startedAt);
+    for (const stem of this.stems) { try { stem.source.stop(); } catch {} stem.source.disconnect(); stem.gain.disconnect(); }
+    this.stems = []; if (reset) this.offset = 0;
   }
-
-  loot() { this.tone(660, .09, 'sine', .1, 220); setTimeout(() => this.tone(880, .12, 'sine', .08, 160), 75); }
-  hurt() { this.tone(72, .18, 'sawtooth', .16, -28); }
-  boss() { this.tone(55, .55, 'sawtooth', .18, 45); }
-  mission() { [440, 660, 880].forEach((f, i) => setTimeout(() => this.tone(f, .12, 'triangle', .1, 80), i * 90)); }
-
-  startMusic() {
-    if (this.musicTimer || this.volume('music') <= 0) return;
-    const sequence = [55, 55, 65.4, 55, 73.4, 65.4, 49, 55];
-    this.musicTimer = setInterval(() => {
-      if (this.volume('music') <= 0) return;
-      const ctx = this.ensure();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const now = ctx.currentTime;
-      osc.type = 'triangle';
-      osc.frequency.value = sequence[this.musicStep++ % sequence.length];
-      gain.gain.setValueAtTime(.06 * this.volume('music'), now);
-      gain.gain.exponentialRampToValueAtTime(.0001, now + .42);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(); osc.stop(now + .45);
-    }, 430);
+  play(id, x = 480, gain = .6) {
+    const ctx = this.ctx, buffer = this.buffers[id];
+    if (!ctx || !buffer || this.voices.size >= 24 || !this.settings.effectsVolume || !this.settings.masterVolume) return;
+    const source = ctx.createBufferSource(), amp = ctx.createGain(); source.buffer = buffer;
+    amp.gain.value = gain; source.connect(amp);
+    const pan = ctx.createStereoPanner?.();
+    if (pan) { pan.pan.value = Math.max(-.8, Math.min(.8, (x - 480) / 480)); amp.connect(pan).connect(this.fx); } else amp.connect(this.fx);
+    this.voices.add(source); source.onended = () => { this.voices.delete(source); source.disconnect(); amp.disconnect(); pan?.disconnect(); };
+    source.start();
   }
-
-  stopMusic() {
-    clearInterval(this.musicTimer);
-    this.musicTimer = null;
+  event(e) {
+    if (e.type === 'shot') this.play(e.weapon, e.x, .43);
+    else if (e.type === 'hit' && (e.crit || e.armorBreak)) this.play('crit', e.x, .3);
+    else if (e.type === 'kill') this.play('kill', e.x, .22);
+    else if (e.type === 'explosion' || e.type === 'boss' || e.type === 'slam') this.play('slam', e.x, .7);
+    else if (['hurt', 'loot', 'mission', 'overdrive'].includes(e.type)) this.play(e.type, e.x);
   }
-
   updateSettings(settings) {
     this.settings = settings;
-    if (this.volume('music') <= 0) this.stopMusic();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(settings.masterVolume / 100, now, .02);
+    this.music.gain.setTargetAtTime(settings.musicVolume / 100, now, .02);
+    this.fx.gain.setTargetAtTime(settings.effectsVolume / 100, now, .02);
   }
-
-  dispose() {
-    this.stopMusic();
-    for (const node of this.active) { try { node.stop(); } catch {} }
-    this.active.clear();
-  }
+  dispose() { this.stopMusic(); for (const voice of this.voices) { try { voice.stop(); } catch {} } this.ctx?.close(); }
 }

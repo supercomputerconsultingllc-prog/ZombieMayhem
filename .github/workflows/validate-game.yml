@@ -14,6 +14,7 @@ on:
       - 'tests/**'
       - 'playwright.config.mjs'
       - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/validate-game.yml'
 
 permissions:
@@ -22,24 +23,36 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CROSS_BROWSER: '1'
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
 
       - name: Install browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Validate game integrity
         run: npm run validate
+
+      - name: Unit and regression tests
+        run: npm run test:unit
+
+      - name: Sixty-minute simulation soak
+        run: npm run test:soak
 
       - name: Run desktop and mobile smoke tests
         run: npm run test:browser
@@ -49,5 +62,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            test-results/
           if-no-files-found: ignore

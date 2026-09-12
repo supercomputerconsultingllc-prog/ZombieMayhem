@@ -1935,6 +1935,13 @@
     }
 
     function openSettingsPanel() {
+      const origin = overlay.querySelector('.hero-card h1') ? 'title'
+        : overlay.querySelector('.hero-card h2')?.textContent === 'Paused' ? 'pause' : 'game';
+      window.closeSettingsPanel = function() {
+        if (origin === 'title') showTitleScreen();
+        else if (origin === 'pause') showPauseOverlay();
+        else window.closeOverlayAndResume();
+      };
       state.paused = true;
       pauseGameMusic();
       overlay.innerHTML = `
@@ -2002,7 +2009,7 @@
               <button class="secondary" id="openAccountBtn" style="width:auto;margin-top:0;">Open Account</button>
             </div>
           </div>
-          <button onclick="window.closeOverlayAndResume()">Done</button>
+          <button onclick="window.closeSettingsPanel()">Done</button>
         </div>`;
 
       const volumeRange = document.getElementById('volumeRange');

@@ -11,6 +11,12 @@ const requiredFiles = [
   'docs/v2/src/config.js',
   'docs/v2/src/storage.js',
   'docs/v2/src/audio.js',
+  'docs/v2/src/simulation.js',
+  'docs/v2/src/engine.js',
+  'docs/v2/src/director.js',
+  'docs/v2/src/renderer.js',
+  'docs/v2/src/progression.js',
+  'docs/v2/src/screens.js',
   'docs/v2/src/game.js'
 ];
 const failures = [];
@@ -27,7 +33,7 @@ for (const relative of requiredFiles.filter((file) => file.endsWith('.js'))) {
 }
 
 const html = fs.readFileSync(path.join(root, 'docs/v2/index.html'), 'utf8');
-const game = fs.readFileSync(path.join(root, 'docs/v2/src/game.js'), 'utf8');
+const game = requiredFiles.filter(file => file.endsWith('.js')).map(file => fs.readFileSync(path.join(root, file), 'utf8')).join('\n');
 const styles = fs.readFileSync(path.join(root, 'docs/v2/styles.css'), 'utf8');
 
 const requiredHtml = [
@@ -49,15 +55,15 @@ const requiredGameSystems = [
   ['missions', /updateMission\(/],
   ['loot', /dropLoot\(/],
   ['skill progression', /buySkill\(/],
-  ['account XP', /gainAccountXp\(/],
-  ['achievements', /checkAchievements\(/],
+  ['account XP', /awardRun\(/],
+  ['achievements', /ACHIEVEMENTS/],
   ['adaptive quality', /adaptiveQuality/],
   ['public runtime snapshot', /window\.__zombieV2/]
 ];
 for (const [label, pattern] of requiredGameSystems) if (!pattern.test(game)) failures.push(`Missing ${label}`);
 
 if (!/reduced-motion/.test(styles) || !/high-contrast/.test(styles)) failures.push('Missing accessibility styles');
-if (!/^2\.0\.0-alpha\./.test(VERSION)) failures.push(`Unexpected V2 version ${VERSION}`);
+if (!/^2\.0\.0-(alpha|beta)\./.test(VERSION)) failures.push(`Unexpected V2 version ${VERSION}`);
 if (Object.keys(WEAPONS).length < 8) failures.push('Expected at least 8 weapons');
 if (Object.keys(ENEMIES).length < 10) failures.push('Expected at least 10 enemy archetypes');
 if (Object.keys(MODES).length < 4) failures.push('Expected at least 4 game modes');

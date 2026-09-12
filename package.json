@@ -1,16 +1,19 @@
 {
   "name": "zombie-mayhem",
   "private": true,
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-beta.2",
   "type": "module",
   "scripts": {
     "validate:v1": "node scripts/validate-game.mjs",
     "validate:v2": "node scripts/validate-v2.mjs",
+    "test:simulation": "node tests/simulation.test.mjs",
     "validate": "npm run validate:v1 && npm run validate:v2",
     "test:browser": "playwright test",
     "test:browser:desktop": "playwright test --project=desktop-chromium",
     "test:browser:mobile": "playwright test --project=mobile-chromium",
-    "test": "npm run validate && npm run test:browser"
+    "test": "npm run validate && npm run test:unit && npm run test:browser",
+    "test:unit": "node --test tests/*.test.mjs",
+    "test:soak": "node tests/soak.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1"

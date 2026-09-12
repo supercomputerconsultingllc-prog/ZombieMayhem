@@ -17,6 +17,8 @@ const titleSettingsButton = (page) => page.getByRole('button', { name: 'Settings
 
 test.beforeEach(async ({ page }) => {
   await page.route('https://cdn.jsdelivr.net/**', (route) => route.abort());
+  // V1 warms up checkout on page load. Keep smoke tests offline and payment-free.
+  await page.route('https://checkout.stripe.com/**', (route) => route.fulfill({ status: 200, body: '' }));
 });
 
 test('title, settings, start, pause, resume, and restart remain functional', async ({ page }) => {
@@ -44,7 +46,7 @@ test('title, settings, start, pause, resume, and restart remain functional', asy
   await expect(page.getByRole('heading', { name: 'Paused', exact: true })).toBeHidden();
 
   await pauseButton.click();
-  await page.getByRole('button', { name: 'Restart Run', exact: true }).click();
+  await page.locator('#overlay').getByRole('button', { name: 'Restart Run', exact: true }).click();
   await expect(page.locator('.app')).toBeVisible();
   await expect(pauseButton).toBeVisible();
   expect(errors).toEqual([]);

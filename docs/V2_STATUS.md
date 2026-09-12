@@ -9,9 +9,9 @@
 
 ## Current version
 
-`2.0.0-alpha.1`
+`2.0.0-beta.2`
 
-This is an engineering foundation, not a finished V2.0 release.
+Phases 1–3 now have an integrated playable beta. This is not commercial/production certification. See [Beta 2 delivery notes](V2_BETA_2.md) for implementation, validation and remaining release gates.
 
 ## V2.0 release gates
 

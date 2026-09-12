@@ -1,9 +1,41 @@
-export const VERSION = '2.0.0-alpha.1';
+export const VERSION = '2.0.0-beta.2';
+export const SAVE_VERSION = 4;
 export const SAVE_KEY = 'zombieMayhemV2Profile';
 export const SETTINGS_KEY = 'zombieMayhemV2Settings';
 export const WIDTH = 960;
 export const HEIGHT = 720;
 export const LANES = [270, 480, 690];
+
+export const BIOMES = [
+  { id: 'highway', name: 'Quarantine Highway', sky: '#071812', ground: '#17251f', road: '#242b29', accent: '#64d98b', hazard: 'wrecks' },
+  { id: 'suburb', name: 'Deadlight Suburbs', sky: '#161426', ground: '#28233a', road: '#30313b', accent: '#ffb86c', hazard: 'barricades' },
+  { id: 'downtown', name: 'Burning Downtown', sky: '#240d0b', ground: '#3a1915', road: '#302522', accent: '#ff684d', hazard: 'fire' },
+  { id: 'industrial', name: 'Flooded Industrial Zone', sky: '#071b24', ground: '#12313a', road: '#23343a', accent: '#53c5ff', hazard: 'flood' }
+];
+
+export const FORMATIONS = {
+  wedge: { name: 'Assault Wedge', damage: 1.12, armor: .9, fireRate: 1, spread: 1, detail: '+12% damage, -10% protection' },
+  box: { name: 'Defensive Box', damage: .92, armor: 1.3, fireRate: .92, spread: .85, detail: '+30% protection, slower fire' },
+  wide: { name: 'Wide Screen', damage: 1, armor: .94, fireRate: 1.08, spread: 1.35, detail: 'Faster fire and wider coverage' }
+};
+
+export const SPECIALISTS = {
+  medic: { name: 'Field Medic', detail: 'Restores one survivor each wave', color: '#7bf1a8' },
+  gunner: { name: 'Heavy Gunner', detail: '+18% sustained weapon damage', color: '#f6d365' },
+  engineer: { name: 'Combat Engineer', detail: '+35 starting armor and larger blasts', color: '#53c5ff' },
+  sniper: { name: 'Recon Sniper', detail: '+12% critical chance', color: '#c4b5fd' }
+};
+
+export const RUN_UPGRADES = [
+  { id: 'hollowpoints', name: 'Hollow Points', detail: '+18% weapon damage', tag: 'Offense' },
+  { id: 'rapidcycle', name: 'Rapid Cycle', detail: '+14% fire rate', tag: 'Offense' },
+  { id: 'plates', name: 'Ceramic Plates', detail: '+45 armor', tag: 'Defense' },
+  { id: 'reinforcements', name: 'Reinforcements', detail: '+3 survivors', tag: 'Squad' },
+  { id: 'scavenger', name: 'Lucky Scavenger', detail: '+15% loot chance', tag: 'Economy' },
+  { id: 'incendiary', name: 'Incendiary Rounds', detail: 'All bullets ignite targets', tag: 'Status' },
+  { id: 'cryo', name: 'Cryo Payload', detail: 'Critical hits slow targets', tag: 'Status' },
+  { id: 'glasscannon', name: 'Last Magazine', detail: '+40% damage, incoming damage +25%', tag: 'Cursed' }
+];
 
 export const MODES = {
   campaign: { label: 'Campaign', speed: 1, spawn: 1, bossEvery: 5, reward: 1 },
@@ -101,10 +133,61 @@ export const LOOT = [
 
 export const DEFAULT_PROFILE = {
   accountLevel: 1, accountXp: 0, skillPoints: 0, bestDistance: 0, lifetimeKills: 0,
-  lifetimeCredits: 0, unlockedWeapons: ['rifle'], mastery: {}, skills: {}, achievements: {}, dailyBest: 0
+  lifetimeCredits: 0, unlockedWeapons: ['rifle'], mastery: {}, skills: {}, achievements: {}, dailyBest: 0,
+  tutorialComplete: false, chaptersCompleted: 0, history: []
 };
 
 export const DEFAULT_SETTINGS = {
   masterVolume: 75, musicVolume: 28, effectsVolume: 65, quality: 'auto',
-  reducedMotion: false, highContrast: false, damageFlashes: true
+  reducedMotion: false, highContrast: false, damageFlashes: true, screenShake: true, damageNumbers: true, gore: false
 };
+
+export const ACHIEVEMENTS = {
+  first_blood: 'First Blood', exterminator: 'Exterminator', road_warrior: 'Road Warrior',
+  boss_breaker: 'Boss Breaker', rich_run: 'Supply Baron', campaign_clear: 'Dawn Patrol'
+};
+
+export const CHAPTERS = [
+  { name: 'The Last Convoy', boss: 'The Roadblock', attack: 'slam', story: 'Recover the convoy route and break the quarantine line.' },
+  { name: 'Deadlight Rescue', boss: 'The Howler', attack: 'summon', story: 'Move the survivors through the suburbs before the pack closes in.' },
+  { name: 'Ashes of the City', boss: 'The Furnace', attack: 'crossfire', story: 'Cross the burning district. Keep clear of the fuel drums.' },
+  { name: 'Cold Harbor', boss: 'The Leviathan', attack: 'barrage', story: 'Secure the industrial evacuation corridor. Bring everyone home.' }
+];
+
+// Each evolution changes weapon behavior and is exclusive for that weapon this run.
+export const EVOLUTIONS = {
+  rifle: [
+    { id: 'burst', name: 'Trident Burst', detail: 'Three rounds per volley; slower cycling.', mods: { shots: 3, spread: .045, cooldown: 290, damage: 22 } },
+    { id: 'sabot', name: 'Sabot Rifle', detail: 'Pierces two enemies and ignores most armor.', mods: { pierce: 2, armorPierce: .8, damage: 25 } }
+  ],
+  shotgun: [
+    { id: 'dragon', name: 'Dragon Breath', detail: 'Incendiary pellets ignite a wide cone.', mods: { status: 'burn', shots: 8 } },
+    { id: 'slug', name: 'Slug Cannon', detail: 'One heavy penetrating projectile.', mods: { shots: 1, damage: 115, pierce: 3, speed: 1100, knockback: 60 } }
+  ],
+  sniper: [
+    { id: 'rail', name: 'Rail Lance', detail: 'Cuts through five targets and armor.', mods: { pierce: 5, armorPierce: 1, speed: 2400 } },
+    { id: 'headhunter', name: 'Headhunter', detail: 'Explosive critical rounds.', mods: { crit: .6, explosive: 85 } }
+  ],
+  minigun: [
+    { id: 'stable', name: 'Stabilized Minigun', detail: 'No overheating; concentrated fire.', mods: { heat: false, spread: 0 } },
+    { id: 'inferno', name: 'Inferno Rotary', detail: 'High damage incendiary suppression.', mods: { damage: 16, status: 'burn', cooldown: 90 } }
+  ],
+  flame: [
+    { id: 'napalm', name: 'Napalm Sprayer', detail: 'Wider cone with explosive fire pockets.', mods: { explosive: 55, spread: .25 } },
+    { id: 'plasma', name: 'Plasma Torch', detail: 'Longer reach and armor penetration.', mods: { speed: 780, armorPierce: .7, damage: 11 } }
+  ],
+  tesla: [
+    { id: 'storm', name: 'Chain Storm', detail: 'Arcs across six distinct targets.', mods: { chain: 6 } },
+    { id: 'lance', name: 'Arc Lance', detail: 'Concentrated lightning pierces a column.', mods: { chain: 0, damage: 95, pierce: 3 } }
+  ],
+  freeze: [
+    { id: 'field', name: 'Freeze Field', detail: 'Chilling blasts slow nearby targets.', mods: { explosive: 120 } },
+    { id: 'shatter', name: 'Shatter Driver', detail: 'Double impact damage against frozen targets.', mods: { shatter: true, damage: 40 } }
+  ],
+  grenade: [
+    { id: 'cluster', name: 'Cluster Launcher', detail: 'Three overlapping explosive projectiles.', mods: { shots: 3, spread: .17, damage: 48 } },
+    { id: 'bunker', name: 'Bunker Buster', detail: 'Large armor-breaking blast.', mods: { explosive: 180, armorPierce: .75, damage: 130 } }
+  ]
+};
+
+export const LIMITS = Object.freeze({ enemies: 160, bullets: 320, particles: 400, pickups: 80, enemyProjectiles: 200, hazards: 18 });
