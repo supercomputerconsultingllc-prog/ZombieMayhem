@@ -9,7 +9,9 @@
 
 ## Current version
 
-`2.0.0-beta.2`
+`2.0.0-beta.3`
+
+Beta 3 replaces lane switching with continuous two-dimensional movement, relative touch dragging and a thumb pad. Phones use a full-height portrait view with matching simulation bounds; enemy spawns, aim assistance, pickups, contact damage and circular boss warnings use the squad's actual position. Mobile rendering has a 1.5x DPR cap, lower-quality 30 FPS rendering and 4 FPS paused rendering, while simulation remains fixed-step. Physical-device frame-rate and battery certification are still pending.
 
 Phases 1–3 now have an integrated playable beta. This is not commercial/production certification. See [Beta 2 delivery notes](V2_BETA_2.md) for implementation, validation and remaining release gates.
 

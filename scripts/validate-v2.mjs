@@ -13,6 +13,7 @@ const requiredFiles = [
   'docs/v2/src/audio.js',
   'docs/v2/src/simulation.js',
   'docs/v2/src/engine.js',
+  'docs/v2/src/input.js',
   'docs/v2/src/director.js',
   'docs/v2/src/renderer.js',
   'docs/v2/src/progression.js',

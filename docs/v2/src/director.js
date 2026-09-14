@@ -1,4 +1,4 @@
-import { BIOMES, CHAPTERS, LANES } from './config.js';
+import { BIOMES, CHAPTERS } from './config.js';
 import { clamp } from './simulation.js';
 /** Authored mode rules, independent of rendering and account persistence. */
 export class RunDirector {
@@ -62,15 +62,15 @@ export class RunDirector {
     if (!s.boss && e.mode !== 'bossrush' && s.wave >= 2 && s.time >= s.nextHazard) {
       s.nextHazard = s.time + e.rng.range(7, 11);
       const type = ['wreck', 'barrel', 'fire', 'flood'][this.biomeIndex];
-      e.spawn('hazards', { type, x: e.rng.pick(LANES), y: -60, previousY: -60, size: 42,
+      e.spawn('hazards', { type, x: e.rng.range(e.bounds.left, e.bounds.right), y: -60, previousY: -60, size: 42,
         hp: type === 'barrel' ? 35 : type === 'wreck' ? 100 : Infinity, warning: 0, life: 12, dead: false });
     }
     if (e.mode === 'horde') {
       for (const fort of s.fortifications) if (fort.hp > 0) {
         fort.cooldown -= dt;
         if (fort.cooldown <= 0) {
-          const target = s.enemies.find(enemy => !enemy.dead && Math.abs(enemy.x - LANES[fort.lane]) < 105);
-          if (target) { e.directDamage(target, 20 + s.wave * 2, 'rifle'); fort.cooldown = .6; e.emit('turret', { x: LANES[fort.lane], targetX: target.x, targetY: target.y }); }
+          const target = s.enemies.find(enemy => !enemy.dead && Math.abs(enemy.x - fort.x) < 150);
+          if (target) { e.directDamage(target, 20 + s.wave * 2, 'rifle'); fort.cooldown = .6; e.emit('turret', { x: fort.x, targetX: target.x, targetY: target.y }); }
         }
       }
     }

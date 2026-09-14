@@ -133,7 +133,7 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
   .settings-grid label { grid-template-columns:1fr; }
   .boss-bar { top:132px; width:calc(100% - 32px); }
 }
-/* Beta 2: a fixed playfield, viewport-safe controls and readable tactical menus. */
+/* Viewport-safe controls and readable tactical menus. */
 :root { --bg:#070f10; --panel:#0c1a1c; --panel-2:#13272a; --line:rgba(137,191,181,.22); --muted:#abc2bd; --lime:#d0e5a0; }
 html,body { height:100%; overflow:hidden; }
 body { background:#070f10; }
@@ -209,4 +209,22 @@ details { padding:12px; border-bottom:1px solid var(--line); }summary { cursor:p
 @media (max-height:540px) and (orientation:landscape) {
  .topbar { min-height:50px; grid-template-columns:140px 1fr auto; padding:4px 10px; }.stats { grid-column:auto; order:initial; }.brand strong { font-size:13px; }
  .stage-wrap { max-width:calc((100dvh - 110px) * 4 / 3); }.mobile-controls { flex-basis:54px; }.mobile-controls button { min-height:40px; }
+}
+
+/* Free movement: full-height portrait battlefield, thumb pad and no lane buttons. */
+#movePad { display:flex; align-items:center; justify-content:center; gap:8px; flex:2; min-height:48px; max-width:360px; border:1px solid #528879; border-radius:16px; background:#18332e; color:#c7e6d7; font-size:12px; touch-action:none; user-select:none; -webkit-user-select:none; }
+#movePad span { font-size:26px; }#movePad.steering { background:#285448; border-color:#cee8a2; }
+canvas,.mobile-controls { user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+.mobile-controls button { touch-action:none; }canvas { cursor:grab; }canvas.steering { cursor:grabbing; }
+@media (max-width:1050px) and (orientation:portrait) {
+ .game-layout { display:flex; align-items:stretch; flex:1; min-height:0; }
+ .stage-wrap { flex:1; width:100%; height:100%; aspect-ratio:auto; max-width:none; overflow:hidden; }
+ canvas { width:100%; height:100%; aspect-ratio:auto; }
+ #leftBtn,#rightBtn { display:none; }
+ .mobile-controls { flex:0 0 76px; padding:8px 10px; gap:8px; }
+ .mobile-controls button { flex:0 0 82px; max-width:96px; border-radius:16px; min-height:52px; }
+ #movePad { min-width:0; max-width:none; }
+ .mission-card { pointer-events:none; }.combat-feed { bottom:20%; font-size:12px; max-width:85%; text-align:center; }
+ .tutorial-banner { bottom:8px; background:rgba(7,22,20,.88); }
+ .overlay { backdrop-filter:none; background:rgba(2,10,9,.94); }
 }

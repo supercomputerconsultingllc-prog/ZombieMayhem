@@ -1,4 +1,4 @@
-import { WIDTH, HEIGHT, LANES, BIOMES, SPECIALISTS, LIMITS } from './config.js';
+import { WIDTH, HEIGHT, BIOMES, SPECIALISTS, LIMITS } from './config.js';
 import { clamp, SeededRandom, ObjectPool } from './simulation.js';
 const lerp = (a, b, t) => (a ?? b) + (b - (a ?? b)) * t;
 export class GameRenderer {
@@ -17,8 +17,14 @@ export class GameRenderer {
     }));
   }
   resize() {
-    this.scale = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = WIDTH * this.scale; this.canvas.height = HEIGHT * this.scale;
+    const rect = this.canvas.getBoundingClientRect();
+    this.viewWidth = clamp(HEIGHT * (rect.width / Math.max(1, rect.height)), 300, WIDTH);
+    this.offsetX = (WIDTH - this.viewWidth) / 2;
+    // Match physical display pixels, with a lower cap on phones to control fill cost.
+    const dpr = Math.min(window.devicePixelRatio || 1, this.viewWidth < 720 ? 1.5 : 2);
+    this.scale = Math.max(.5, rect.height / HEIGHT * dpr);
+    const width = Math.round(this.viewWidth * this.scale), height = Math.round(HEIGHT * this.scale);
+    if (this.canvas.width !== width || this.canvas.height !== height) { this.canvas.width = width; this.canvas.height = height; }
     this.ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0); this.ctx.imageSmoothingEnabled = true; this.ctx.imageSmoothingQuality = 'high';
   }
   reset() { this.effects.forEach(e => this.pool.release(e)); this.effects.length = 0; this.decals.length = 0; this.shake = 0; }
@@ -61,7 +67,7 @@ export class GameRenderer {
         if (this.fastWindows >= 4) { this.adaptiveQuality = this.adaptiveQuality === 'low' ? 'medium' : 'high'; this.fastWindows = 0; }
       }
     }
-    ctx.save(); ctx.fillStyle = '#071211'; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.save(); ctx.translate(-this.offsetX, 0); ctx.fillStyle = '#071211'; ctx.fillRect(0, 0, WIDTH, HEIGHT);
     const shake = this.settings.screenShake && !this.settings.reducedMotion ? this.shake : 0;
     ctx.translate(this.rng.range(-shake, shake), this.rng.range(-shake, shake)); this.shake *= Math.exp(-dt * 16);
     const biome = engine.director.biomeIndex, background = this.assets.environments;
@@ -78,8 +84,6 @@ export class GameRenderer {
       }
     }
     ctx.fillStyle = this.settings.highContrast ? 'rgba(0,0,0,.48)' : 'rgba(0,0,0,.12)'; ctx.fillRect(145, 0, 670, HEIGHT);
-    ctx.strokeStyle = 'rgba(224,251,247,.28)'; ctx.lineWidth = 2; ctx.setLineDash([18, 25]); ctx.lineDashOffset = -s.distance * 2;
-    for (const x of [375, 585]) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, HEIGHT); ctx.stroke(); } ctx.setLineDash([]);
     for (const d of this.decals) {
       if (active) d.life -= dt;
       ctx.globalAlpha = Math.max(0, d.life / 6) * .5; ctx.fillStyle = this.settings.gore ? '#7e1626' : '#111a17';
@@ -87,7 +91,7 @@ export class GameRenderer {
     } ctx.globalAlpha = 1; this.decals = this.decals.filter(d => d.life > 0);
     this.hazards(ctx, s, alpha);
     for (const fort of s.fortifications) if (fort.hp > 0) {
-      const x = LANES[fort.lane]; ctx.fillStyle = '#345c61'; ctx.fillRect(x - 45, HEIGHT - 160, 90, 22);
+      const x = fort.x; ctx.fillStyle = '#345c61'; ctx.fillRect(x - 45, HEIGHT - 160, 90, 22);
       ctx.fillStyle = '#b8e4d9'; ctx.fillRect(x - 7, HEIGHT - 180, 14, 36);
       ctx.fillStyle = '#5cffbb'; ctx.fillRect(x - 45, HEIGHT - 131, .9 * fort.hp, 3);
     }
@@ -131,32 +135,32 @@ export class GameRenderer {
       ctx.globalAlpha = 1;
     }
     ctx.fillStyle = this.vignette; ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    ctx.fillStyle = '#d2e8de'; ctx.font = 'bold 12px system-ui'; ctx.fillText(BIOMES[biome].name.toUpperCase(), 22, HEIGHT - 22);
+    ctx.fillStyle = '#d2e8de'; ctx.font = 'bold 12px system-ui'; ctx.fillText(BIOMES[biome].name.toUpperCase(), this.offsetX + 14, HEIGHT - 22);
     ctx.restore();
   }
   squad(ctx, s, alpha) {
-    const x = lerp(s.previousLaneX, s.laneX, alpha), count = Math.min(12, Math.ceil(s.squad));
+    const x = lerp(s.previousX, s.x, alpha), y = lerp(s.previousY, s.y, alpha), count = Math.min(12, Math.ceil(s.squad));
     for (let i = count - 1; i >= 0; i--) {
       const row = Math.floor(i / 4), col = i % 4;
       let dx = (col - 1.5) * 26, dy = row * 23;
       if (s.formation === 'wedge') { dx = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 15; dy = Math.ceil(i / 2) * 10; }
       if (s.formation === 'wide') { dx = (col - 1.5) * 43; dy = row * 17; }
-      const specialist = SPECIALISTS[s.specialists[i - 1]], px = x + dx, py = HEIGHT - 101 + dy;
+      const specialist = SPECIALISTS[s.specialists[i - 1]], px = x + dx * .8, py = y + 4 + dy * .8;
       this.sprite(ctx, 0, this.settings.reducedMotion ? 0 : Math.floor(s.time * 8 + i % 2) % 4, px, py, 64);
       ctx.fillStyle = i === 0 ? '#ffc766' : specialist?.color || '#67d6c5'; ctx.beginPath(); ctx.ellipse(px, py + 26, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = '#091713'; ctx.fillRect(x - 80, HEIGHT - 18, 160, 6);
-    ctx.fillStyle = s.time < s.overdriveUntil ? '#ffc766' : '#67e3d6'; ctx.fillRect(x - 80, HEIGHT - 18, 160 * s.overdrive / 100, 6);
-    if (s.heat) { ctx.fillStyle = '#ff895b'; ctx.fillRect(x - 80, HEIGHT - 9, 160 * s.heat / 100, 3); }
+    ctx.fillStyle = '#091713'; ctx.fillRect(x - 80, y + 70, 160, 6);
+    ctx.fillStyle = s.time < s.overdriveUntil ? '#ffc766' : '#67e3d6'; ctx.fillRect(x - 80, y + 70, 160 * s.overdrive / 100, 6);
+    if (s.heat) { ctx.fillStyle = '#ff895b'; ctx.fillRect(x - 80, y + 79, 160 * s.heat / 100, 3); }
   }
   hazards(ctx, s, alpha) {
     for (const h of s.hazards) {
       if (h.dead) continue;
       const y = lerp(h.previousY, h.y, alpha);
       if (h.type === 'strike') {
-        ctx.fillStyle = h.warning > 0 ? 'rgba(255,141,79,.2)' : 'rgba(255,99,60,.7)'; ctx.fillRect(h.x - 85, 215, 170, HEIGHT - 240);
-        ctx.strokeStyle = '#ffbd7b'; ctx.lineWidth = 3; ctx.strokeRect(h.x - 85, 215, 170, HEIGHT - 240);
-        ctx.fillStyle = '#ffe3c2'; ctx.font = 'bold 18px system-ui'; ctx.textAlign = 'center'; ctx.fillText(h.warning > 0 ? '! INCOMING' : 'IMPACT', h.x, 280); ctx.textAlign = 'left';
+        ctx.fillStyle = h.warning > 0 ? 'rgba(255,141,79,.2)' : 'rgba(255,99,60,.7)'; ctx.beginPath(); ctx.arc(h.x, y, h.size, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ffbd7b'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.fillStyle = '#ffe3c2'; ctx.font = 'bold 18px system-ui'; ctx.textAlign = 'center'; ctx.fillText(h.warning > 0 ? '! INCOMING' : 'IMPACT', h.x, y + 5); ctx.textAlign = 'left';
       } else if (h.type === 'barrel') {
         ctx.fillStyle = '#d9a642'; ctx.fillRect(h.x - 23, y - 30, 46, 60); ctx.strokeStyle = '#1c2729'; ctx.lineWidth = 6; ctx.strokeRect(h.x - 23, y - 30, 46, 60); ctx.fillStyle = '#272420'; ctx.font = 'bold 28px sans-serif'; ctx.fillText('!', h.x - 5, y + 10);
       } else if (h.type === 'wreck') {

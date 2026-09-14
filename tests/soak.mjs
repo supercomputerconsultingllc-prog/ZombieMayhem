@@ -9,7 +9,7 @@ for (let frame = 0; frame < 60 * 3600; frame++) {
   // Keep the harness alive to stress long-run allocation, rather than end at a defeat.
   e.state.baseHealth = 100; e.state.squad = 40; e.state.armor = 500;
   if (e.state.draft) e.applyRunUpgrade(e.state.draft[0].id);
-  if (frame % 90 === 0) e.lane(Math.floor(frame / 90) % 3, true);
+  if (frame % 90 === 0) e.moveTo(190 + frame % 580, 350 + frame % 250);
   if (frame % 300 === 0) e.selectWeapon(Object.keys(WEAPONS)[Math.floor(frame / 300) % 8]);
   if (e.state.overdrive >= 100) e.overdrive();
   e.tick(1 / 60);

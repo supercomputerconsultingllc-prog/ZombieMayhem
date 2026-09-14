@@ -1,10 +1,9 @@
-export const VERSION = '2.0.0-beta.2';
+export const VERSION = '2.0.0-beta.3';
 export const SAVE_VERSION = 4;
 export const SAVE_KEY = 'zombieMayhemV2Profile';
 export const SETTINGS_KEY = 'zombieMayhemV2Settings';
 export const WIDTH = 960;
 export const HEIGHT = 720;
-export const LANES = [270, 480, 690];
 
 export const BIOMES = [
   { id: 'highway', name: 'Quarantine Highway', sky: '#071812', ground: '#17251f', road: '#242b29', accent: '#64d98b', hazard: 'wrecks' },

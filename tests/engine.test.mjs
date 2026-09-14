@@ -24,7 +24,7 @@ test('identical inputs at 30, 60 and 144 render Hz produce identical simulation'
   function run(hz) {
     const e = game(), clock = new FixedStepClock(); let step = 0;
     for (let frame = 0; frame < hz * 12; frame++) clock.advance(1 / hz, dt => {
-      if (step % 120 === 0) e.lane((step / 120) % 3, true);
+      if (step % 120 === 0) e.moveTo(210 + (step * 1.7) % 530, 350 + step % 250);
       if (step === 60) e.overdrive();
       if (e.state.draft) e.applyRunUpgrade(e.state.draft[0].id);
       e.tick(dt); step++;
@@ -101,7 +101,7 @@ test('boss stays in its arena and provides a warning before impact', () => {
   const e = game('bossrush'), boss = e.spawnEnemy('boss', 1);
   boss.y = 175; boss.attackTimer = 0; e.updateBoss(boss, 1 / 60);
   assert.ok(e.state.hazards.length); assert.ok(e.state.hazards.every(h => h.warning >= 1));
-  const h = e.state.hazards[0]; e.state.laneX = h.x; const squad = e.state.squad;
+  const h = e.state.hazards[0]; e.state.x = h.x; e.state.y = h.y; const squad = e.state.squad;
   e.updateHazards(.5); assert.equal(e.state.squad, squad); e.updateHazards(.8); assert.ok(e.state.squad < squad);
   for (let i = 0; i < 2000; i++) e.updateEnemies(1 / 60);
   assert.ok(boss.y <= 175); assert.equal(boss.dead, false);

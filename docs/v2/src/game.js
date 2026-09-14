@@ -5,6 +5,7 @@ import { FixedStepClock } from './simulation.js';
 import { awardRun } from './progression.js';
 import { GameRenderer } from './renderer.js';
 import { AudioDirector } from './audio.js';
+import { FreeMovementInput } from './input.js';
 import { ScreenManager } from './screens.js';
 const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -17,7 +18,7 @@ class ZombieMayhemV2 {
     this.clock = new FixedStepClock(); this.renderer = new GameRenderer(this.ui.gameCanvas, this.settings); this.audio = new AudioDirector(this.settings);
     this.engine = new CombatEngine(this.profile); this.engine.state.running = false;
     this.screens = new ScreenManager(this.ui.overlay, this.ui.appShell, paused => {
-      this.engine.state.paused = paused; this.clock.reset();
+      this.input?.reset(); this.engine.state.paused = paused; this.clock.reset();
       if (paused) this.audio.stopMusic(); else if (this.engine.state.running) void this.audio.startMusic();
     });
     this.bindUi(); this.applySettings(); this.renderWeapons(this.ui.weaponGrid); this.refreshTitle(); this.syncHud();
@@ -33,7 +34,10 @@ class ZombieMayhemV2 {
       try {
         const dt = Math.max(0, Math.min(.2, (time - this.lastFrame) / 1000)); this.lastFrame = time;
         const alpha = this.engine.state.paused ? 1 : this.clock.advance(dt, step => this.engine.tick(step));
-        this.renderer.render(this.engine, alpha, dt); this.hudElapsed += dt;
+        this.renderElapsed = (this.renderElapsed || 0) + dt;
+        const renderInterval = this.engine.state.paused ? .25 : this.renderer.quality() === 'low' ? 1 / 30 : 0;
+        if (this.renderElapsed >= renderInterval) { this.renderer.render(this.engine, alpha, this.renderElapsed); this.renderElapsed = 0; }
+        this.hudElapsed += dt;
         if (this.hudElapsed >= .1) { this.hudElapsed = 0; this.syncHud(); }
         requestAnimationFrame(this.loop);
       } catch (error) { this.fatal(error); }
@@ -45,7 +49,7 @@ class ZombieMayhemV2 {
     this.ui.pauseBtn.onclick = () => this.togglePause(); this.ui.settingsBtn.onclick = () => this.showSettings();
     this.ui.skillsBtn.onclick = () => this.showSkills(); this.ui.saveToolsBtn.onclick = () => this.showSaveTools();
     this.ui.recordsBtn.onclick = () => this.showRecords();
-    this.ui.leftBtn.onpointerdown = () => this.engine.lane(-1); this.ui.rightBtn.onpointerdown = () => this.engine.lane(1);
+    this.input = new FreeMovementInput(this.ui.gameCanvas, this.ui.movePad, [[this.ui.leftBtn, -1], [this.ui.rightBtn, 1]], () => this.engine, () => this.screens.kind === 'playing', () => this.renderer.viewWidth);
     this.ui.abilityBtn.onpointerdown = () => this.engine.overdrive(); this.ui.evacBtn.onclick = () => this.engine.extract();
     this.ui.loadoutBtn.onclick = () => this.showLoadout(); this.ui.skipTutorial.onclick = () => this.engine.skipTutorial();
     this.ui.formationSelect.innerHTML = Object.entries(FORMATIONS).map(([id, form]) => `<option value="${id}">${form.name}</option>`).join('');
@@ -64,20 +68,14 @@ class ZombieMayhemV2 {
       if (this.screens.kind !== 'playing') return;
       if (['ArrowLeft', 'ArrowRight', ' ', 'a', 'd', 'e'].includes(event.key)) event.preventDefault();
       if (event.repeat) return;
-      if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') this.engine.lane(-1);
-      if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') this.engine.lane(1);
       if (event.key === ' ' || event.key.toLowerCase() === 'e') this.engine.overdrive();
       const weapon = Object.keys(WEAPONS)[Number(event.key) - 1]; if (weapon) this.selectWeapon(weapon);
     });
-    this.ui.gameCanvas.onpointerdown = event => {
-      if (this.screens.kind !== 'playing') return;
-      const rect = this.ui.gameCanvas.getBoundingClientRect(), x = (event.clientX - rect.left) / rect.width * WIDTH;
-      this.engine.lane(x < 375 ? 0 : x < 585 ? 1 : 2, true);
-    };
     const pauseOnLeave = () => { if (this.screens.kind === 'playing' && this.engine.state.running) this.togglePause(); };
     window.addEventListener('blur', pauseOnLeave);
     document.addEventListener('visibilitychange', () => { if (document.hidden) pauseOnLeave(); });
-    window.addEventListener('resize', () => this.renderer.resize());
+    const resize = () => { this.input.reset(); this.renderer.resize(); this.engine.setViewport(this.renderer.viewWidth); };
+    this.resizeObserver = new ResizeObserver(resize); this.resizeObserver.observe(this.ui.gameCanvas);
     window.addEventListener('pagehide', () => { this.persist(); this.audio.stopMusic(); });
   }
   startRun() {
@@ -85,6 +83,7 @@ class ZombieMayhemV2 {
     this.seed = this.ui.runSeed.value.trim().replace(/[^a-zA-Z0-9-]/g, '').slice(0, 32) || this.seed;
     this.unsubscribe?.(); this.audio.stopMusic(true); this.renderer.reset();
     this.engine = new CombatEngine(this.profile, this.mode, this.seed, !this.profile.tutorialComplete);
+    this.renderer.resize(); this.engine.setViewport(this.renderer.viewWidth);
     this.unsubscribe = this.engine.events.subscribe(event => this.onEvent(event)); this.clock.reset();
     this.screens.clear(); this.renderWeapons(this.ui.weaponGrid); this.syncHud();
     this.feed(this.engine.director.objective());
@@ -224,7 +223,7 @@ class ZombieMayhemV2 {
     ui.bossBar.classList.toggle('hidden', !s.boss); ui.missionCard.classList.toggle('boss-active', !!s.boss);
     if (s.boss) { ui.bossName.textContent = s.boss.name; ui.bossPhase.textContent = `Phase ${s.boss.phase} · ${s.boss.weakUntil > s.time ? 'WEAK POINT OPEN' : 'Armored'}`; ui.bossHealth.style.width = `${Math.max(0, s.boss.hp / s.boss.maxHp * 100)}%`; }
     ui.tutorialBanner.hidden = s.tutorial < 0 || !s.running;
-    ui.tutorialText.textContent = ['Move lanes: tap the road or use ← → / A D.', 'Use Overdrive: press Space, E, or the Overdrive button.', 'Defeat three infected. Fire is automatic; keep threats in your lane.'][s.tutorial] || '';
+    ui.tutorialText.textContent = ['Drag the battlefield or thumb pad to move freely. Keyboard: WASD / arrows.', 'Use Overdrive: press Space, E, or the Overdrive button.', 'Defeat three infected. Fire is automatic; aim assistance tracks threats ahead.'][s.tutorial] || '';
     this.audio.intensity(!!s.boss, s.enemies.length);
   }
   snapshot() {
@@ -234,7 +233,7 @@ class ZombieMayhemV2 {
       weapon: s.selectedWeapon, mission: s.mission.type, seed: this.seed, formation: s.formation,
       specialists: [...s.specialists], biome: BIOMES[this.engine.director.biomeIndex].id,
       quality: this.renderer.quality(), fps: this.renderer.fps, screen: this.screens.kind, assetsLoaded: Object.keys(this.renderer.assets).length === 2,
-      tutorial: s.tutorial, time: s.time, overdriveUntil: s.overdriveUntil, draft: s.draft?.map(item => item.id) || null, bosses: s.bosses,
+      position: { x: s.x, y: s.y }, viewport: this.renderer.viewWidth, movement: 'free', tutorial: s.tutorial, time: s.time, overdriveUntil: s.overdriveUntil, draft: s.draft?.map(item => item.id) || null, bosses: s.bosses,
       pools: Object.fromEntries(Object.entries(this.engine.pools).map(([id, pool]) => [id, { active: pool.active.size, created: pool.created, limit: pool.limit }])) };
   }
   fatal(error) {

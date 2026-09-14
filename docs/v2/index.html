@@ -13,7 +13,7 @@
   <main class="app-shell" id="appShell">
     <header class="topbar">
       <div class="brand">
-        <span class="eyebrow">V2.0 BETA 2</span>
+        <span class="eyebrow">V2.0 BETA 3 · FREE MOVEMENT</span>
         <strong>Zombie Mayhem</strong>
       </div>
       <div class="stats" aria-label="Game statistics">
@@ -76,9 +76,10 @@
 
     <nav class="mobile-controls" aria-label="Mobile controls">
       <button id="loadoutBtn">Loadout</button>
-      <button id="leftBtn">◀ Lane</button>
+      <button id="leftBtn" aria-label="Move left">◀ Move</button>
+      <div id="movePad" role="group" aria-label="Drag here to move the squad"><span>✥</span> Drag to move</div>
       <button id="abilityBtn">Overdrive</button>
-      <button id="rightBtn">Lane ▶</button>
+      <button id="rightBtn" aria-label="Move right">Move ▶</button>
     </nav>
   </main>
 
@@ -104,7 +105,7 @@
         <button id="saveToolsBtn">Save Tools</button><button id="recordsBtn">Service Record</button>
       </div>
       <label class="seed-input">Run seed <input id="runSeed" maxlength="32" aria-label="Run seed" spellcheck="false"></label>
-      <p class="control-guide">Auto-fire · A / D or arrow keys to change lanes · Space for Overdrive · P to pause</p>
+      <p class="control-guide">Drag to move freely · WASD / arrows · Auto-fire with aim assistance · Space for Overdrive · P to pause</p>
       <a class="legacy-link" href="../index.html">Open preserved V1.2 build</a>
     </section>
   </div>
