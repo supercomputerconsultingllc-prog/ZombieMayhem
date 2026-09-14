@@ -16,6 +16,8 @@ const requiredFiles = [
   'docs/v2/src/input.js',
   'docs/v2/src/director.js',
   'docs/v2/src/renderer.js',
+  'docs/v2/src/presentation.js',
+  'docs/v2/assets/combat-props.png',
   'docs/v2/src/progression.js',
   'docs/v2/src/screens.js',
   'docs/v2/src/game.js'

@@ -1,6 +1,7 @@
 import { WIDTH, HEIGHT, MODES, WEAPONS, ENEMIES, LOOT, FORMATIONS, SPECIALISTS, RUN_UPGRADES, EVOLUTIONS, MISSION_TEMPLATES, LIMITS } from './config.js';
 import { SeededRandom, SpatialGrid, ObjectPool, EventBus, clamp, sweptCircleTime, sweptCircleHit } from './simulation.js';
 import { RunDirector } from './director.js';
+import { squadLayout, PROJECTILE_STYLES } from './presentation.js';
 
 /** Owns gameplay only. Presentation and persistence subscribe to discrete events. */
 export class CombatEngine {
@@ -42,13 +43,20 @@ export class CombatEngine {
     this.state.selectedWeapon = id; this.emit('weapon', { name: this.weapon().name }); return true;
   }
   setViewport(width = WIDTH) {
-    const s = this.state, half = clamp(width, 300, WIDTH) / 2;
-    this.bounds = { left: WIDTH / 2 - half + 65, right: WIDTH / 2 + half - 65, top: 300, bottom: HEIGHT - 95 };
-    s.x = clamp(s.x, this.bounds.left, this.bounds.right); s.previousX = s.x;
-    s.targetX = clamp(s.targetX, this.bounds.left, this.bounds.right);
+    this.viewWidth = clamp(width, 300, WIDTH); this.syncSquadBounds();
+    const s = this.state;
     for (const group of ['enemies', 'hazards', 'pickups', 'fortifications']) for (const item of s[group]) {
       item.x = clamp(item.x, this.bounds.left, this.bounds.right); item.previousX = item.x;
     }
+  }
+  syncSquadBounds() {
+    const s = this.state, layout = squadLayout(s.squad, s.formation), half = this.viewWidth / 2;
+    this.layoutKey = `${Math.ceil(s.squad)}:${s.formation}`;
+    const margin = Math.max(65, layout.halfWidth + 10);
+    this.bounds = { left: WIDTH / 2 - half + margin, right: WIDTH / 2 + half - margin, top: 300, bottom: Math.min(HEIGHT - 95, HEIGHT - layout.halfHeight - 28) };
+    s.x = clamp(s.x, this.bounds.left, this.bounds.right); s.y = clamp(s.y, this.bounds.top, this.bounds.bottom);
+    s.previousX = s.x; s.previousY = s.y;
+    s.targetX = clamp(s.targetX, this.bounds.left, this.bounds.right); s.targetY = clamp(s.targetY, this.bounds.top, this.bounds.bottom);
   }
   moveTo(x, y = this.state.y) {
     const s = this.state; if (!s.running || s.paused || s.gameOver || !Number.isFinite(x) || !Number.isFinite(y)) return;
@@ -125,22 +133,27 @@ export class CombatEngine {
       const distance = (enemy.x - s.x) ** 2 + (enemy.y - s.y) ** 2;
       if (distance < closest) { target = enemy; closest = distance; }
     }
-    const aim = target ? clamp(Math.atan2(target.x - s.x, s.y - target.y), -.7, .7) : 0;
+    const slots = squadLayout(s.squad, s.formation).slots;
+    const shooter = slots[(s.volley || 0) % slots.length] || { x: 0, y: 0 }; s.volley = (s.volley || 0) + 1;
+    const originX = s.x + shooter.x + 7, originY = s.y + shooter.y - 22;
+    const aim = target ? clamp(Math.atan2(target.x - originX, originY - target.y), -.7, .7) : 0;
+    s.aim = aim;
     for (let i = 0; i < weapon.shots; i++) {
       const angle = aim + (weapon.shots === 1 ? this.rng.range(-weapon.spread, weapon.spread) : (i - (weapon.shots - 1) / 2) * weapon.spread * formation.spread);
-      const x = s.x + this.rng.range(-3, 3), y = s.y - 20;
+      const x = originX + this.rng.range(-3, 3), y = originY;
       const bullet = this.spawn('bullets', { x, y, previousX: x, previousY: y, vx: Math.sin(angle) * weapon.speed, vy: -Math.cos(angle) * weapon.speed,
         damage: weapon.damage * (1 + this.skill('command_focus') * .04 + this.skill('heavy_damage') * .06) * s.runDamage * formation.damage * masteryBonus * (s.specialists.includes('gunner') ? 1.18 : 1) * (active ? 1.3 : 1),
         size: weapon.explosive ? 7 : 3, color: weapon.color, crit: clamp(weapon.crit + this.skill('heavy_crit') * .03 + (s.specialists.includes('sniper') ? .12 : 0), 0, .85),
         pierce: weapon.pierce, knockback: weapon.knockback, status: weapon.status, armorPierce: weapon.armorPierce || 0,
         explosive: (weapon.explosive || 0) * (1 + this.skill('engineer_explosive') * .08) * (s.specialists.includes('engineer') ? 1.25 : 1),
-        chain: weapon.chain || 0, shatter: weapon.shatter, life: weapon.status === 'burn' ? 1 : 1.8, weapon: s.selectedWeapon, hitIds: new Set(), counted: false });
+        chain: weapon.chain || 0, shatter: weapon.shatter, age: 0, style: PROJECTILE_STYLES[s.selectedWeapon], life: weapon.status === 'burn' ? 1 : 1.8, weapon: s.selectedWeapon, hitIds: new Set(), counted: false });
       if (bullet) s.shots++;
     }
-    this.emit('shot', { weapon: s.selectedWeapon, x: s.x, y: s.y - 20, color: weapon.color });
+    this.emit('shot', { weapon: s.selectedWeapon, x: originX, y: originY, color: weapon.color, aim });
   }
   tick(dt) {
     const s = this.state; if (!s.running || s.paused || s.gameOver) return;
+    if (this.layoutKey !== `${Math.ceil(s.squad)}:${s.formation}`) this.syncSquadBounds();
     s.time += dt; s.previousX = s.x; s.previousY = s.y;
     if (this.mode !== 'horde' && this.mode !== 'bossrush' && !s.boss) s.distance += dt * 34 * this.modeConfig.speed;
     s.fireTimer = Math.max(0, s.fireTimer - dt); s.spawnTimer -= dt; s.heat = Math.max(0, s.heat - dt * 20);
@@ -169,7 +182,7 @@ export class CombatEngine {
   updateBullets(dt) {
     const s = this.state; this.grid.rebuild(s.enemies);
     for (const b of s.bullets) {
-      b.previousX = b.x; b.previousY = b.y; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      b.previousX = b.x; b.previousY = b.y; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; b.age = (b.age || 0) + dt;
       const padding = 100 + b.size;
       const possible = this.grid.query(Math.min(b.x, b.previousX) - padding, Math.min(b.y, b.previousY) - padding, Math.max(b.x, b.previousX) + padding, Math.max(b.y, b.previousY) + padding);
       const hits = possible.filter(e => !e.dead && !b.hitIds.has(e.id)).map(e => ({ enemy: e, t: sweptCircleTime(b.previousX, b.previousY, b.x, b.y, e.x, e.y, e.size + b.size) })).filter(h => Number.isFinite(h.t)).sort((a, b) => a.t - b.t || a.enemy.id - b.enemy.id);
@@ -188,7 +201,7 @@ export class CombatEngine {
         } else {
           const h = hit.hazard; h.hp -= b.damage; b.dead = true;
           if (h.hp <= 0) {
-            h.dead = true; this.emit('explosion', { x: h.x, y: h.y, color: '#ffa94d' });
+            h.dead = true; this.emit('explosion', { x: h.x, y: h.y, color: '#ffa94d', radius: h.type === 'barrel' ? 190 : 70 });
             if (h.type === 'barrel') for (const enemy of s.enemies) {
               const distance = Math.hypot(enemy.x - h.x, enemy.y - h.y);
               if (distance < 190) this.directDamage(enemy, 180 * (1 - distance / 190), b.weapon);
@@ -207,7 +220,7 @@ export class CombatEngine {
     if (!enemy.boss) enemy.y -= bullet.knockback * .12;
     this.applyStatus(enemy, bullet, crit);
     if (bullet.explosive) {
-      this.emit('explosion', { x: enemy.x, y: enemy.y, color: '#ffa94d' });
+      this.emit('explosion', { x: enemy.x, y: enemy.y, color: '#ffa94d', radius: bullet.explosive });
       for (const other of s.enemies) {
         if (other === enemy || other.dead) continue;
         const distance = Math.hypot(other.x - enemy.x, other.y - enemy.y);
@@ -366,7 +379,7 @@ export class CombatEngine {
         if (a.credits) this.credit(a.credits);
         s.armor = Math.min(500, s.armor + (a.armor || 0)); s.squad = Math.min(40, s.squad + (a.squad || 0));
         s.runDamage = Math.min(8, s.runDamage * (1 + (a.damage || 0))); s.overdrive = Math.min(100, s.overdrive + (a.ability || 0));
-        this.emit('loot', { name: p.loot.name, color: p.loot.color });
+        this.emit('loot', { name: p.loot.name, color: p.loot.color, x: p.x, y: p.y });
       }
     }
   }

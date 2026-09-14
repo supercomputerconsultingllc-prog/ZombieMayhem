@@ -97,7 +97,7 @@ class ZombieMayhemV2 {
       this.ui.damageFlash.classList.add('flash'); clearTimeout(this.flashTimer); this.flashTimer = setTimeout(() => this.ui.damageFlash.classList.remove('flash'), 120);
     }
     const text = ({ wave: `Wave ${event.wave} · ${event.biome}`, boss: event.name, bossDefeated: `${event.name} defeated`,
-      warning: event.text, overdrive: 'OVERDRIVE ENGAGED', loot: event.name, mission: `Mission complete +${event.reward}`,
+      warning: event.text, overdrive: 'OVERDRIVE ENGAGED', mission: `Mission complete +${event.reward}`,
       chapter: `Chapter ${event.number}: ${event.name}`, phase: `Boss phase ${event.phase}`, revive: 'LAST STAND · 2 seconds of protection',
       weapon: `${event.name} equipped`, upgrade: 'Tactical upgrade acquired', evac: event.active ? 'Evac inbound. Survive five seconds.' : 'Evac canceled. Supplies remain at risk.' })[event.type];
     if (text) this.feed(text, event.color);
@@ -232,7 +232,7 @@ class ZombieMayhemV2 {
       wave: s.wave, distance: Math.floor(s.distance), squad: Math.ceil(s.squad), enemies: s.enemies.length,
       weapon: s.selectedWeapon, mission: s.mission.type, seed: this.seed, formation: s.formation,
       specialists: [...s.specialists], biome: BIOMES[this.engine.director.biomeIndex].id,
-      quality: this.renderer.quality(), fps: this.renderer.fps, screen: this.screens.kind, assetsLoaded: Object.keys(this.renderer.assets).length === 2,
+      quality: this.renderer.quality(), fps: this.renderer.fps, screen: this.screens.kind, assetsLoaded: Object.keys(this.renderer.assets).length === 3,
       position: { x: s.x, y: s.y }, viewport: this.renderer.viewWidth, movement: 'free', tutorial: s.tutorial, time: s.time, overdriveUntil: s.overdriveUntil, draft: s.draft?.map(item => item.id) || null, bosses: s.bosses,
       pools: Object.fromEntries(Object.entries(this.engine.pools).map(([id, pool]) => [id, { active: pool.active.size, created: pool.created, limit: pool.limit }])) };
   }

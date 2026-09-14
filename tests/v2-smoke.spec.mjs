@@ -10,6 +10,9 @@ async function runtimeErrors(page) {
 }
 
 test('preserved V1.2 and isolated V2.0 both load', async ({ page }) => {
+  // Match the V1 smoke suite: these navigation checks do not require checkout/CDN access.
+  await page.route('https://cdn.jsdelivr.net/**', route => route.abort());
+  await page.route('https://checkout.stripe.com/**', route => route.fulfill({ status: 200, body: '' }));
   await page.goto('/index.html');
   await expect(page).toHaveTitle('Zombie Mayhem');
   await expect(page.getByRole('button', { name: 'Start Run', exact: true })).toBeVisible();

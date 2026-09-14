@@ -9,7 +9,9 @@
 
 ## Current version
 
-`2.0.0-beta.3`
+`2.0.0-beta.4`
+
+Beta 4 replaces primitive hazard blocks and labeled pickups with a transparent prop atlas. Every survivor up to the 40-person cap has a visible formation slot; the growing formation stays inside mobile view bounds. Firing rotates through the squad without multiplying weapon damage. Equipped gun models, muzzle flashes and eight projectile families now distinguish rifle tracers, shotgun pellets, sniper rails, minigun streaks, flames, Tesla bolts, ice shards and grenades. Explosions show expanding blast rings. Active projectiles retain the weapon that fired them. New automated tests exercise all eight render paths, authored props and a full squad on desktop and phone viewports.
 
 Beta 3 replaces lane switching with continuous two-dimensional movement, relative touch dragging and a thumb pad. Phones use a full-height portrait view with matching simulation bounds; enemy spawns, aim assistance, pickups, contact damage and circular boss warnings use the squad's actual position. Mobile rendering has a 1.5x DPR cap, lower-quality 30 FPS rendering and 4 FPS paused rendering, while simulation remains fixed-step. Physical-device frame-rate and battery certification are still pending.
 
