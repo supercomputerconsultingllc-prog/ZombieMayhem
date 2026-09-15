@@ -7,6 +7,7 @@ import { GameRenderer } from './renderer.js';
 import { AudioDirector } from './audio.js';
 import { FreeMovementInput } from './input.js';
 import { ScreenManager } from './screens.js';
+import { restoreCheckpoint, saveCheckpoint, clearCheckpoint } from './checkpoint.js';
 const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const $ = (selector, root = document) => root.querySelector(selector);
 
@@ -28,6 +29,9 @@ class ZombieMayhemV2 {
   async init() {
     await Promise.all([this.renderer.load(), this.audio.preload()]);
     this.ui.startBtn.disabled = false; this.ui.startBtn.textContent = 'Start V2.0 Run';
+    this.savedRun = restoreCheckpoint(this.profile);
+    const continueButton = document.createElement('button'); continueButton.id = 'continueRun'; continueButton.textContent = 'Continue Run'; continueButton.hidden = !this.savedRun;
+    this.ui.startBtn.after(continueButton); continueButton.onclick = () => this.continueRun();
     window.__zombieV2 = { version: VERSION, snapshot: () => this.snapshot(), start: () => this.startRun(), pause: () => this.togglePause() };
     this.lastFrame = performance.now(); this.hudElapsed = 0;
     this.loop = time => {
@@ -38,6 +42,8 @@ class ZombieMayhemV2 {
         const renderInterval = this.engine.state.paused ? .25 : this.renderer.quality() === 'low' ? 1 / 30 : 0;
         if (this.renderElapsed >= renderInterval) { this.renderer.render(this.engine, alpha, this.renderElapsed); this.renderElapsed = 0; }
         this.hudElapsed += dt;
+        this.checkpointElapsed = (this.checkpointElapsed || 0) + dt;
+        if (this.checkpointElapsed >= 10 && this.engine.state.running && !this.engine.state.paused) { this.checkpointElapsed = 0; this.checkpoint(); }
         if (this.hudElapsed >= .1) { this.hudElapsed = 0; this.syncHud(); }
         requestAnimationFrame(this.loop);
       } catch (error) { this.fatal(error); }
@@ -73,13 +79,21 @@ class ZombieMayhemV2 {
     });
     const pauseOnLeave = () => { if (this.screens.kind === 'playing' && this.engine.state.running) this.togglePause(); };
     window.addEventListener('blur', pauseOnLeave);
+    window.addEventListener('zombie:appstate', event => { if (!event.detail.isActive) { pauseOnLeave(); this.checkpoint(); this.persist(); } });
+    window.addEventListener('zombie:storageerror', () => this.feed('Native save failed. Free device storage and export a backup.'));
     document.addEventListener('visibilitychange', () => { if (document.hidden) pauseOnLeave(); });
     const resize = () => { this.input.reset(); this.renderer.resize(); this.engine.setViewport(this.renderer.viewWidth); };
     this.resizeObserver = new ResizeObserver(resize); this.resizeObserver.observe(this.ui.gameCanvas);
-    window.addEventListener('pagehide', () => { this.persist(); this.audio.stopMusic(); });
+    window.addEventListener('pagehide', () => { pauseOnLeave(); this.checkpoint(); this.persist(); this.audio.stopMusic(); void window.ZombiePlatform?.flush(); });
   }
-  startRun() {
+  startRun(confirmed = false) {
     if (this.ui.startBtn.disabled) return;
+    if (this.savedRun && !confirmed) {
+      this.screens.push('confirm', '<section class="modal"><h2>Replace saved run?</h2><p>Starting a new run replaces your interrupted run. Your account progression is kept.</p><div class="modal-actions"><button id="keepSavedRun" class="primary">Keep saved run</button><button id="replaceSavedRun">Start new run</button></div></section>');
+      $('#keepSavedRun').onclick = () => this.screens.pop(); $('#replaceSavedRun').onclick = () => this.startRun(true); return;
+    }
+    this.runId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    this.savedRun = null; if ($('#continueRun')) $('#continueRun').hidden = true;
     this.seed = this.ui.runSeed.value.trim().replace(/[^a-zA-Z0-9-]/g, '').slice(0, 32) || this.seed;
     this.unsubscribe?.(); this.audio.stopMusic(true); this.renderer.reset();
     this.engine = new CombatEngine(this.profile, this.mode, this.seed, !this.profile.tutorialComplete);
@@ -87,9 +101,21 @@ class ZombieMayhemV2 {
     this.unsubscribe = this.engine.events.subscribe(event => this.onEvent(event)); this.clock.reset();
     this.screens.clear(); this.renderWeapons(this.ui.weaponGrid); this.syncHud();
     this.feed(this.engine.director.objective());
+    this.checkpoint();
+  }
+  checkpoint() { if (this.runId && this.engine.state.running && !saveCheckpoint(this.engine, this.runId)) this.feed('Run checkpoint could not be saved. Export your profile backup.'); }
+  continueRun() {
+    const saved = this.savedRun; if (!saved) return;
+    this.unsubscribe?.(); this.audio.stopMusic(true); this.renderer.reset(); this.engine = saved.engine; this.runId = saved.runId; this.mode = this.engine.mode; this.seed = this.engine.seed;
+    this.renderer.resize(); this.engine.setViewport(this.renderer.viewWidth); this.unsubscribe = this.engine.events.subscribe(event => this.onEvent(event));
+    const button = this.title.querySelector('#continueRun'); if (button) button.hidden = true;
+    this.clock.reset(); this.screens.clear(); this.renderWeapons(this.ui.weaponGrid); this.syncHud(); this.savedRun = null;
+    if (this.engine.state.draft) this.showDraft(this.engine.state.draft); else this.togglePause();
   }
   onEvent(event) {
     this.renderer.event(event); this.audio.event(event);
+    if (this.settings.haptics && ['hurt', 'overdrive', 'loot', 'upgrade'].includes(event.type)) void window.ZombiePlatform?.haptic(event.type);
+    if (['draft', 'upgrade', 'wave'].includes(event.type)) this.checkpoint();
     if (event.type === 'draft') { this.showDraft(event.choices); return; }
     if (event.type === 'finish') { this.finishRun(); return; }
     if (event.type === 'tutorialComplete') { this.profile.tutorialComplete = true; this.persist(); this.feed('Training complete. Hold the line.'); }
@@ -107,6 +133,7 @@ class ZombieMayhemV2 {
     if (!this.engine.state.running || this.engine.state.gameOver) return;
     if (this.screens.kind === 'pause') { this.screens.pop(); return; }
     if (this.screens.kind !== 'playing') return;
+    this.checkpoint();
     this.screens.push('pause', `<section class="modal hero"><span class="eyebrow">RUN PAUSED</span><h2>Hold the line</h2><p>Your run is safe while this menu is open.</p><div class="modal-actions"><button id="resumeRun" class="primary">Resume</button><button id="pauseSettings">Settings</button><button id="restartRun">Restart</button><button id="quitRun">Title Screen</button></div></section>`);
     $('#resumeRun').onclick = () => this.screens.pop(); $('#pauseSettings').onclick = () => this.showSettings();
     $('#restartRun').onclick = () => this.confirmAbandon(() => this.startRun());
@@ -121,7 +148,7 @@ class ZombieMayhemV2 {
   }
   showSettings() {
     const panel = $('#settingsTemplate').content.firstElementChild.cloneNode(true);
-    const ids = { masterVolume: 'masterVolume', musicVolume: 'musicVolume', effectsVolume: 'effectsVolume', qualitySelect: 'quality', reducedMotion: 'reducedMotion', highContrast: 'highContrast', damageFlashes: 'damageFlashes', screenShake: 'screenShake', damageNumbers: 'damageNumbers', gore: 'gore' };
+    const ids = { masterVolume: 'masterVolume', musicVolume: 'musicVolume', effectsVolume: 'effectsVolume', qualitySelect: 'quality', reducedMotion: 'reducedMotion', highContrast: 'highContrast', damageFlashes: 'damageFlashes', screenShake: 'screenShake', damageNumbers: 'damageNumbers', gore: 'gore', leftHanded: 'leftHanded', haptics: 'haptics', textScale: 'textScale' };
     for (const [id, key] of Object.entries(ids)) {
       const control = $(`#${id}`, panel), boolean = control.type === 'checkbox';
       if (boolean) control.checked = this.settings[key]; else control.value = this.settings[key];
@@ -135,6 +162,8 @@ class ZombieMayhemV2 {
   }
   applySettings() {
     document.body.classList.toggle('reduced-motion', this.settings.reducedMotion); document.body.classList.toggle('high-contrast', this.settings.highContrast);
+    document.body.classList.toggle('left-handed', this.settings.leftHanded);
+    document.documentElement.style.setProperty('--text-scale', this.settings.textScale / 100);
     this.renderer.settings = this.settings;
   }
   showSkills(replace = false) {
@@ -185,7 +214,8 @@ class ZombieMayhemV2 {
     });
   }
   finishRun() {
-    const { report, earned } = awardRun(this.profile, this.engine.state, this.mode, this.seed); this.persist(); this.refreshTitle();
+    if (this.profile.lastCompletedRun === this.runId) return;
+    const { report, earned } = awardRun(this.profile, this.engine.state, this.mode, this.seed); this.profile.lastCompletedRun = this.runId || ''; if (this.persist()) clearCheckpoint(); this.refreshTitle();
     const title = report.victory ? this.mode === 'campaign' ? 'The corridor is clear' : this.mode === 'extraction' ? 'Extraction secured' : 'All bosses defeated' : 'The run is over';
     this.screens.set('results', `<section class="modal hero"><span class="eyebrow">${report.victory ? 'MISSION ACCOMPLISHED' : 'AFTER ACTION REPORT'}</span><h2>${title}</h2>${this.reportMarkup(report)}<p>Account Level ${this.profile.accountLevel} · ${this.profile.skillPoints} skill points</p>${earned.length ? `<p class="earned">Unlocked: ${earned.join(', ')}</p>` : ''}<div class="modal-actions"><button id="runAgain" class="primary">Run Again</button><button id="returnTitle">Title Screen</button></div></section>`);
     $('#runAgain').onclick = () => this.startRun(); $('#returnTitle').onclick = () => this.showTitle();
@@ -198,7 +228,7 @@ class ZombieMayhemV2 {
     this.screens.push('records', `<section class="modal wide"><h2>Service record</h2><div class="achievement-grid">${Object.entries(ACHIEVEMENTS).map(([id, name]) => `<div class="${this.profile.achievements[id] ? 'earned' : ''}">${this.profile.achievements[id] ? '✓' : '○'} ${name}</div>`).join('')}</div><h3>Recent runs</h3>${this.profile.history.length ? this.profile.history.map(r => `<details><summary>${MODES[r.mode].label} · ${r.victory ? 'Victory' : 'Run ended'} · ${r.kills} kills</summary>${this.reportMarkup(r)}</details>`).join('') : '<p>Complete your first run to start your service record.</p>'}<div class="modal-actions"><button id="closeRecords" class="primary">Done</button></div></section>`);
     $('#closeRecords').onclick = () => this.screens.pop();
   }
-  persist() { if (!saveProfile(this.profile)) this.feed('Progress could not be saved. Use Save Tools to export a backup.'); }
+  persist() { const saved = saveProfile(this.profile); if (!saved) this.feed('Progress could not be saved. Use Save Tools to export a backup.'); return saved; }
   refreshTitle() {
     this.ui.bestDistance.textContent = `${Math.floor(this.profile.bestDistance)}m`; this.ui.accountLevel.textContent = this.profile.accountLevel; this.ui.skillPoints.textContent = this.profile.skillPoints;
   }

@@ -1,35 +1,64 @@
-name: release-prep
-
+name: V2 native release checks
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'apps/zombie-squad-run/**'
-      - 'apps/zombie-squad-run-ios-webwrap/**'
-
+    branches: [v2.0-development, release/v2.0]
+    paths: ['docs/v2/**', 'apps/zombie-squad-run-ios-webwrap/**', 'tests/**', '.github/workflows/release-prep.yml', 'playwright.native.config.mjs']
+  pull_request:
+    paths: ['docs/v2/**', 'apps/zombie-squad-run-ios-webwrap/**', '.github/workflows/release-prep.yml']
+permissions:
+  contents: read
 jobs:
-  prep:
+  offline-package:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/zombie-squad-run-ios-webwrap
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
-
-      - name: Install deps
-        run: npm install
-
-      - name: Prepare release bundle
-        run: npm run release:prep
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/zombie-squad-run-ios-webwrap/package-lock.json
+      - run: npm ci && npm run test:unit
+      - run: npm ci && npm audit --audit-level=high && npm run prepare:web && node tools/verify-v2.js --release
+        working-directory: apps/zombie-squad-run-ios-webwrap
+      - run: npx playwright install --with-deps chromium webkit
+      - run: CROSS_BROWSER=1 npx playwright test --config=playwright.native.config.mjs --project=desktop-chromium --project=mobile-webkit
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: zombie-squad-run-release-bundle
-          path: apps/zombie-squad-run-ios-webwrap/release
+          name: native-package-evidence
+          path: |
+            apps/zombie-squad-run-ios-webwrap/web/build-manifest.json
+            test-results/
+  ios-simulator:
+    needs: offline-package
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Select Xcode 26
+        run: node apps/zombie-squad-run-ios-webwrap/tools/select-xcode.js
+      - name: Prepare native source
+        working-directory: apps/zombie-squad-run-ios-webwrap
+        run: npm ci && node tools/check-xcode.js && npm run prepare:ios && node tools/verify-v2.js --release
+      - name: Compile unsigned simulator app
+        working-directory: apps/zombie-squad-run-ios-webwrap
+        run: xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/simulator CODE_SIGNING_ALLOWED=NO build
+      - name: Verify packaged game in compiled app
+        working-directory: apps/zombie-squad-run-ios-webwrap
+        run: node tools/verify-app.js build/simulator/Build/Products/Release-iphonesimulator/App.app
+      - name: Install and launch on simulator
+        working-directory: apps/zombie-squad-run-ios-webwrap
+        run: node tools/simulator-smoke.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-evidence
+          path: |
+            apps/zombie-squad-run-ios-webwrap/build/simulator-smoke.png
+            apps/zombie-squad-run-ios-webwrap/web/build-manifest.json
+            apps/zombie-squad-run-ios-webwrap/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved

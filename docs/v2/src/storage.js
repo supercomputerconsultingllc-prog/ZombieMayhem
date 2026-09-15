@@ -1,4 +1,5 @@
 import { SAVE_KEY, SETTINGS_KEY, SAVE_VERSION, DEFAULT_PROFILE, DEFAULT_SETTINGS, WEAPONS, SKILL_TREES, ACHIEVEMENTS, MODES, FORMATIONS, EVOLUTIONS, SPECIALISTS } from './config.js';
+import { storageChanged } from './durable.js';
 const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const n = (v, fallback = 0, max = 1e8) => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(max, v)) : fallback;
 const integer = (v, fallback, max) => Math.floor(n(v, fallback, max));
@@ -16,6 +17,7 @@ export function sanitizeProfile(input) {
     dailyBest: n(p.dailyBest), unlockedWeapons: [...new Set(['rifle', ...(Array.isArray(p.unlockedWeapons) ? p.unlockedWeapons.filter(id => known(WEAPONS, id)) : [])])],
     skills, mastery, achievements, tutorialComplete: p.tutorialComplete === true,
     chaptersCompleted: integer(p.chaptersCompleted, 0, 4),
+    lastCompletedRun: typeof p.lastCompletedRun === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(p.lastCompletedRun) ? p.lastCompletedRun : '',
     history: (Array.isArray(p.history) ? p.history : []).slice(0, 20).filter(record).map(sanitizeReport)
   };
 }
@@ -38,23 +40,41 @@ export function sanitizeSettings(input) {
     masterVolume: n(p.masterVolume, 75, 100), musicVolume: n(p.musicVolume, 28, 100), effectsVolume: n(p.effectsVolume, 65, 100),
     quality: ['auto', 'high', 'medium', 'low'].includes(p.quality) ? p.quality : 'auto',
     reducedMotion: p.reducedMotion === true, highContrast: p.highContrast === true,
-    damageFlashes: p.damageFlashes !== false, screenShake: p.screenShake !== false, damageNumbers: p.damageNumbers !== false, gore: p.gore === true
+    damageFlashes: p.damageFlashes !== false, screenShake: p.screenShake !== false, damageNumbers: p.damageNumbers !== false, gore: p.gore === true,
+    leftHanded: p.leftHanded === true, haptics: p.haptics !== false, textScale: Math.max(100, n(p.textScale, 100, 140))
   };
 }
 export function loadProfile() {
-  try { const saved = JSON.parse(localStorage.getItem(SAVE_KEY)); return sanitizeProfile(saved?.version ? saved.profile : saved); }
-  catch { return sanitizeProfile(null); }
+  for (const key of [SAVE_KEY, `${SAVE_KEY}.backup`]) {
+    try { const saved = JSON.parse(localStorage.getItem(key));
+      if (!record(saved)) continue;
+      if (saved.version && ![2, 3, SAVE_VERSION].includes(saved.version)) throw new Error('Unsupported version');
+      if (saved.version && !record(saved.profile)) continue;
+      return sanitizeProfile(saved.version ? saved.profile : saved);
+    } catch { /* Fall back to the last complete write. */ }
+  }
+  return sanitizeProfile(null);
 }
 export function loadSettings() {
   try { return sanitizeSettings(JSON.parse(localStorage.getItem(SETTINGS_KEY))); }
   catch { return { ...DEFAULT_SETTINGS }; }
 }
 export function saveProfile(profile) {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, profile: sanitizeProfile(profile) })); return true; }
+  try {
+    const old = localStorage.getItem(SAVE_KEY);
+    if (old) {
+      let p; try { p = JSON.parse(old); } catch {}
+      if (record(p) && p.version > SAVE_VERSION) return false;
+      if (record(p) && (!p.version || ([2, 3, SAVE_VERSION].includes(p.version) && record(p.profile)))) {
+        try { localStorage.setItem(`${SAVE_KEY}.backup`, old); } catch { /* Retain the older backup if quota is tight. */ }
+      }
+    }
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, profile: sanitizeProfile(profile) })); storageChanged(); return true;
+  }
   catch { return false; }
 }
 export function saveSettings(settings) {
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(sanitizeSettings(settings))); return true; }
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(sanitizeSettings(settings))); storageChanged(); return true; }
   catch { return false; }
 }
 export function exportSave(profile, settings) {
@@ -67,12 +87,13 @@ export function importSave(encoded) {
   const parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(atob(encoded.trim()), c => c.charCodeAt(0))));
   if (!record(parsed) || ![2, 3, SAVE_VERSION].includes(parsed.version) || !record(parsed.profile) || !record(parsed.settings)) throw new Error('Unsupported or malformed V2 save.');
   const profile = sanitizeProfile(parsed.profile), settings = sanitizeSettings(parsed.settings);
-  const previousProfile = localStorage.getItem(SAVE_KEY), previousSettings = localStorage.getItem(SETTINGS_KEY);
+  const previousProfile = localStorage.getItem(SAVE_KEY), previousSettings = localStorage.getItem(SETTINGS_KEY), previousBackup = localStorage.getItem(`${SAVE_KEY}.backup`);
   try {
     if (!saveProfile(profile) || !saveSettings(settings)) throw new Error('Device storage is unavailable. Export a backup and free space.');
   } catch (error) {
     try {
       if (previousProfile === null) localStorage.removeItem(SAVE_KEY); else localStorage.setItem(SAVE_KEY, previousProfile);
+      if (previousBackup === null) localStorage.removeItem(`${SAVE_KEY}.backup`); else localStorage.setItem(`${SAVE_KEY}.backup`, previousBackup);
       if (previousSettings === null) localStorage.removeItem(SETTINGS_KEY); else localStorage.setItem(SETTINGS_KEY, previousSettings);
     } catch { /* Storage may remain unavailable; report failure without claiming success. */ }
     throw error;

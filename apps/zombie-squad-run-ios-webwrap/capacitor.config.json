@@ -1,6 +1,7 @@
 {
   "appId": "com.zombiesquadrun.game",
-  "appName": "Zombie Squad Run",
+  "appName": "Zombie Mayhem",
   "webDir": "web",
-  "bundledWebRuntime": false
+  "ios": { "contentInset": "never", "preferredContentMode": "mobile", "scrollEnabled": false },
+  "server": { "hostname": "localhost", "iosScheme": "capacitor" }
 }

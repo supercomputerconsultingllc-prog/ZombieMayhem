@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeProfile, sanitizeSettings, exportSave, importSave, saveProfile, loadProfile } from '../docs/v2/src/storage.js';
-import { SAVE_KEY, SETTINGS_KEY, SAVE_VERSION } from '../docs/v2/src/config.js';
+import { SAVE_KEY, SETTINGS_KEY, SAVE_VERSION, DEFAULT_SETTINGS } from '../docs/v2/src/config.js';
 const values = new Map();
 globalThis.localStorage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
 const encode = value => btoa(JSON.stringify(value));
@@ -13,7 +13,7 @@ test('profile schema ignores unknown keys, HTML, invalid numbers and unlocks', (
 });
 test('every malformed nested value safely falls back to defaults', () => {
   for (const value of [null, true, false, [], 'bad', 4]) { const p = sanitizeProfile({ skills: value, mastery: value, achievements: value, history: value }); assert.equal(p.accountLevel, 1); assert.deepEqual(p.history, []); }
-  assert.deepEqual(sanitizeSettings({ masterVolume: -4, musicVolume: Infinity, effectsVolume: '99', quality: 'bogus', reducedMotion: 'true' }), { masterVolume: 0, musicVolume: 28, effectsVolume: 65, quality: 'auto', reducedMotion: false, highContrast: false, damageFlashes: true, screenShake: true, damageNumbers: true, gore: false });
+  assert.deepEqual(sanitizeSettings({ masterVolume: -4, musicVolume: Infinity, effectsVolume: '99', quality: 'bogus', reducedMotion: 'true' }), { ...DEFAULT_SETTINGS, masterVolume: 0 });
 });
 test('exports round-trip and versions 2 and 3 migrate without touching V1 data', () => {
   localStorage.setItem('zombieV1Sentinel', 'preserved');

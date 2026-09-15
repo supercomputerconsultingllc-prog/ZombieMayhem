@@ -21,12 +21,13 @@ export class CombatEngine {
       pendingDrafts: 0, draft: null, nextHazard: 10, extracting: false, extractProgress: 0,
       enemies: [], bullets: [], particles: [], pickups: [], enemyProjectiles: [], hazards: [], fortifications: [],
       damageDealt: 0, shots: 0, hits: 0, combo: 0, bestCombo: 0, comboUntil: 0,
-      missionIndex: 0, missionValue: 0, missionBase: 0, mission: null,
+      missionIndex: 0, missionValue: 0, missionBase: 0, mission: null, volley: 0, aim: 0,
       tutorial: tutorial ? 0 : -1, tutorialKills: 0, slowedUntil: 0, invulnerableUntil: 0
     };
     this.setViewport(); this.director = new RunDirector(this); this.setMission(0);
   }
   skill(id) { return this.profile.skills?.[id] || 0; }
+  squadFireRate() { return 1 + Math.min(.45, Math.max(0, this.state.squad - 1) * .015); }
   emit(type, data = {}) { this.events.emit({ type, ...data }); }
   spawn(group, values) {
     const entity = this.pools[group].acquire({ dead: false, id: ++this.sequence, ...values });
@@ -125,7 +126,7 @@ export class CombatEngine {
     const s = this.state, weapon = this.weapon(), formation = FORMATIONS[s.formation];
     if (s.fireTimer > 0 || (weapon.heat && s.heat >= 96)) return;
     const active = s.time < s.overdriveUntil;
-    s.fireTimer = Math.max(.035, weapon.cooldown / 1000 / (active ? 1.9 : 1) / formation.fireRate / s.fireRate);
+    s.fireTimer = Math.max(.035, weapon.cooldown / 1000 / (active ? 1.9 : 1) / formation.fireRate / s.fireRate / this.squadFireRate());
     if (weapon.heat) s.heat = Math.min(100, s.heat + 5 * (1 - this.skill('heavy_heat') * .08));
     const masteryBonus = 1 + Math.min(.12, Math.floor((this.profile.mastery[s.selectedWeapon] || 0) / 250) * .02);
     let target = null, closest = Infinity;
@@ -349,9 +350,24 @@ export class CombatEngine {
         if (h.warning <= 0 && !h.fired) { h.fired = true; if (Math.hypot(h.x - s.x, h.y - s.y) < h.size + 28) this.damageSquad(h.damage); this.emit('slam', { x: h.x, y: h.y }); }
       } else {
         h.y += dt * 95;
-        if (Math.abs(h.y - s.y) < 36 && Math.abs(h.x - s.x) < h.size + 20) {
-          if (h.type === 'flood') { s.slowedUntil = s.time + .7; }
-          else { h.dead = true; this.damageSquad(h.type === 'fire' ? 3 : 2); }
+        const radius = h.size + 26;
+        if (sweptCircleHit(s.previousX - h.x, s.previousY - h.previousY, s.x - h.x, s.y - h.y, 0, 0, radius)) {
+          if (h.type === 'flood') s.slowedUntil = s.time + .7;
+          else {
+            if (s.time >= (h.nextContact || 0)) { this.damageSquad(h.type === 'fire' ? 3 : 2); h.nextContact = s.time + 1; }
+            if (h.type === 'wreck' || h.type === 'barrel') {
+              const dx = s.previousX - h.x, dy = s.previousY - h.previousY, length = Math.hypot(dx, dy) || 1;
+              s.x = clamp(h.x + dx / length * (radius + 1), this.bounds.left, this.bounds.right);
+              s.y = clamp(h.y + (length === 1 && dx === 0 && dy === 0 ? radius + 1 : dy / length * (radius + 1)), this.bounds.top, this.bounds.bottom);
+              if (Math.hypot(s.x - h.x, s.y - h.y) < radius) {
+                const candidates = [[h.x - radius - 1, h.y], [h.x + radius + 1, h.y], [h.x, h.y - radius - 1], [h.x, h.y + radius + 1]]
+                  .filter(([x, y]) => x >= this.bounds.left && x <= this.bounds.right && y >= this.bounds.top && y <= this.bounds.bottom)
+                  .sort((a, b) => Math.hypot(a[0] - s.previousX, a[1] - s.previousY) - Math.hypot(b[0] - s.previousX, b[1] - s.previousY));
+                if (candidates[0]) [s.x, s.y] = candidates[0];
+              }
+              s.targetX = s.x; s.targetY = s.y;
+            }
+          }
         }
       }
     }

@@ -214,6 +214,9 @@ details { padding:12px; border-bottom:1px solid var(--line); }summary { cursor:p
 /* Free movement: full-height portrait battlefield, thumb pad and no lane buttons. */
 #movePad { display:flex; align-items:center; justify-content:center; gap:8px; flex:2; min-height:48px; max-width:360px; border:1px solid #528879; border-radius:16px; background:#18332e; color:#c7e6d7; font-size:12px; touch-action:none; user-select:none; -webkit-user-select:none; }
 #movePad span { font-size:26px; }#movePad.steering { background:#285448; border-color:#cee8a2; }
+.left-handed .mobile-controls { flex-direction:row-reverse; }
+.settings-grid label,.modal p,.modal-actions button,.draft-grid span { font-size:calc(14px * var(--text-scale, 1)); }
+.mobile-controls { padding-bottom:max(8px, env(safe-area-inset-bottom)); }
 canvas,.mobile-controls { user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
 .mobile-controls button { touch-action:none; }canvas { cursor:grab; }canvas.steering { cursor:grabbing; }
 @media (max-width:1050px) and (orientation:portrait) {
@@ -228,3 +231,5 @@ canvas,.mobile-controls { user-select:none; -webkit-user-select:none; -webkit-to
  .tutorial-banner { bottom:8px; background:rgba(7,22,20,.88); }
  .overlay { backdrop-filter:none; background:rgba(2,10,9,.94); }
 }
+.mobile-controls { padding-bottom:max(8px, env(safe-area-inset-bottom)); }
+.modal .settings-grid label,.modal p,.modal .modal-actions button,.modal .draft-grid span { font-size:calc(14px * var(--text-scale, 1)); }

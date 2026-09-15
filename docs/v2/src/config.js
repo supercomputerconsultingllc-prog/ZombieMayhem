@@ -1,4 +1,4 @@
-export const VERSION = '2.0.0-beta.4';
+export const VERSION = '2.0.0-beta.5';
 export const SAVE_VERSION = 4;
 export const SAVE_KEY = 'zombieMayhemV2Profile';
 export const SETTINGS_KEY = 'zombieMayhemV2Settings';
@@ -138,7 +138,8 @@ export const DEFAULT_PROFILE = {
 
 export const DEFAULT_SETTINGS = {
   masterVolume: 75, musicVolume: 28, effectsVolume: 65, quality: 'auto',
-  reducedMotion: false, highContrast: false, damageFlashes: true, screenShake: true, damageNumbers: true, gore: false
+  reducedMotion: false, highContrast: false, damageFlashes: true, screenShake: true, damageNumbers: true, gore: false,
+  leftHanded: false, haptics: true, textScale: 100
 };
 
 export const ACHIEVEMENTS = {
