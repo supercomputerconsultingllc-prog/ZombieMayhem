@@ -13,3 +13,8 @@ IDENTITY.md
 skills/*/.learnings/
 skills/m365-pnp-cli/
 skills/self-improving-agent/
+
+# Generated dependency and test output
+node_modules/
+playwright-report/
+test-results/

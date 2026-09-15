@@ -1,11 +1,13 @@
 {
   "name": "zombie-squad-run-ios-webwrap",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Capacitor-ready wrapper scaffold for Zombie Squad Run",
+  "description": "Offline iOS packaging for Zombie Mayhem V2",
   "scripts": {
     "prepare:web": "node tools/prepare-web.js",
-    "release:prep": "node tools/prepare-web.js && node tools/make-release-bundle.js",
+    "verify:v2": "node tools/verify-v2.js",
+    "prepare:ios": "node tools/prepare-ios.js",
+    "release:prep": "node tools/prepare-web.js && node tools/verify-v2.js --release",
     "validate:release": "node tools/validate-release.js",
     "check:placeholders": "node tools/check-placeholders.js",
     "check:assets": "node tools/check-assets.js",
@@ -17,17 +19,23 @@
     "set:pages-urls": "node tools/set-pages-urls.js",
     "check:monetization": "node tools/check-monetization-readiness.js",
     "generate:submission-packet": "node tools/generate-submission-packet.js",
-    "finalize:release": "node tools/finalize-release.js",
+    "finalize:release": "node tools/prepare-ios.js && node tools/verify-v2.js --release",
     "assets:starter-pack": "node tools/generate-icon.js && node tools/capture-screenshots.js && node tools/polish-screenshots.js && node tools/build-hosted-pages.js",
-    "preflight": "node tools/validate-release.js && node tools/check-assets.js && node tools/print-next-steps.js",
-    "release:check": "node tools/full-release-check.js",
+    "preflight": "node tools/verify-v2.js --release",
+    "release:check": "node tools/verify-v2.js --release && node tools/check-xcode.js",
     "cap:init:notes": "node tools/print-next-steps.js"
   },
   "dependencies": {
-    "@capacitor/core": "^6.1.2"
+    "@capacitor/core": "8.5.2",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/filesystem": "8.1.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.2",
-    "@capacitor/ios": "^6.1.2"
-  }
+    "@capacitor/cli": "8.5.2",
+    "@capacitor/ios": "8.5.2",
+    "esbuild": "0.28.2"
+  },
+  "overrides": { "xcode": { "uuid": "11.1.1" } },
+  "engines": { "node": ">=22" }
 }

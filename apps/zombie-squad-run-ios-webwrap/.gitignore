@@ -1,3 +1,4 @@
+# Built exclusively from docs/v2; never ship stale checked-in web bundles.
 node_modules/
 .DS_Store
 npm-debug.log*
@@ -6,6 +7,13 @@ release/*.zip
 *.mobileprovision
 *.p12
 *.key
-.env
 .env.local
 .env.production
+web/
+.web-build-*/
+.web-backup-*/
+ios/
+build/
+*.ipa
+*.xcarchive/
+.env

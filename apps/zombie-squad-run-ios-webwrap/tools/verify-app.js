@@ -1,0 +1,10 @@
+const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
+const app = process.argv[2];
+if (!app || !app.endsWith('.app')) throw Error('Pass the compiled .app directory');
+const publicDir = path.join(app, 'public');
+const expected = JSON.parse(fs.readFileSync(path.join(__dirname, '../web/build-manifest.json')));
+const actual = JSON.parse(fs.readFileSync(path.join(publicDir, 'build-manifest.json')));
+if (JSON.stringify(expected) !== JSON.stringify(actual)) throw Error('Native app contains a different web build');
+for (const [file, hash] of Object.entries(expected.files)) if (crypto.createHash('sha256').update(fs.readFileSync(path.join(publicDir, file))).digest('hex') !== hash) throw Error('Native asset mismatch: ' + file);
+if (!fs.existsSync(path.join(app, 'PrivacyInfo.xcprivacy'))) throw Error('Privacy manifest missing from compiled app');
+console.log('Compiled app matches V2 source:', actual.sourceCommit, actual.version);

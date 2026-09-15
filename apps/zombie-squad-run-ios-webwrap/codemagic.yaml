@@ -1,84 +1,53 @@
+# Select this config in Codemagic. Configure the named integration and signing
+# identity there; no credentials belong in .env files or release artifacts.
 workflows:
-  zombie-squad-run-ios:
-    name: Zombie Squad Run iOS
-    max_build_duration: 90
+  zombie-mayhem-testflight:
+    name: Zombie Mayhem V2 TestFlight
+    max_build_duration: 60
     instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: zombie-mayhem-apple
     environment:
-      xcode: latest
-      cocoapods: default
-      node: 20
-      vars:
-        XCODE_WORKSPACE: apps/zombie-squad-run-ios-webwrap/ios/App/App.xcworkspace
-        XCODE_SCHEME: App
-        APP_STORE_APPLE_ID: ""
+      xcode: 26.6
+      node: 24
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.zombiesquadrun.game
     scripts:
-      - name: Install npm dependencies
+      - name: Validate game and dependencies
         script: |
+          set -euo pipefail
+          npm ci
+          npm audit --audit-level=high
+          npm run validate
+          npm run test:unit
+          npm run test:soak
+          npx playwright install chromium webkit
+          CROSS_BROWSER=1 npx playwright test --project=desktop-chromium --project=mobile-webkit
+      - name: Prepare pinned offline V2 native project
+        script: |
+          set -euo pipefail
           cd apps/zombie-squad-run-ios-webwrap
-          npm install
-      - name: Validate required environment variables
+          npm ci
+          npm audit --audit-level=high
+          node tools/check-xcode.js
+          export ZOMBIE_BUILD_NUMBER="$((BUILD_NUMBER + 1))"
+          npm run prepare:ios
+          node tools/verify-v2.js --release
+      - name: Sign and archive
         script: |
-          test -n "$APP_ID" || (echo "APP_ID is required" && exit 1)
-          test -n "$APP_NAME" || (echo "APP_NAME is required" && exit 1)
-          test -n "$APPLE_TEAM_ID" || (echo "APPLE_TEAM_ID is required" && exit 1)
-      - name: Materialize .env from Codemagic secrets
-        script: |
+          set -euo pipefail
           cd apps/zombie-squad-run-ios-webwrap
-          cat > .env <<EOF
-          APP_ID=$APP_ID
-          APP_NAME=$APP_NAME
-          APPLE_TEAM_ID=$APPLE_TEAM_ID
-          APP_STORE_CONNECT_ISSUER_ID=$APP_STORE_CONNECT_ISSUER_ID
-          APP_STORE_CONNECT_KEY_ID=$APP_STORE_CONNECT_KEY_ID
-          APP_STORE_CONNECT_PRIVATE_KEY_BASE64=$APP_STORE_CONNECT_PRIVATE_KEY_BASE64
-          PAGES_BASE_URL=$PAGES_BASE_URL
-          GITHUB_OWNER=$GITHUB_OWNER
-          GITHUB_REPO=$GITHUB_REPO
-          EOF
-      - name: Finalize release assets and metadata
-        script: |
-          cd apps/zombie-squad-run-ios-webwrap
-          npm run finalize:release
-          npm run generate:submission-packet
-      - name: Add iOS platform if needed
-        script: |
-          cd apps/zombie-squad-run-ios-webwrap
-          npx cap add ios || true
-      - name: Sync Capacitor iOS project
-        script: |
-          cd apps/zombie-squad-run-ios-webwrap
-          npx cap sync ios
-      - name: Install CocoaPods dependencies
-        script: |
-          cd apps/zombie-squad-run-ios-webwrap/ios/App
-          pod install
-      - name: Set up App Store Connect API key for publishing
-        script: |
-          mkdir -p "$HOME/private_keys"
-          if [ -n "$APP_STORE_CONNECT_PRIVATE_KEY_BASE64" ] && [ -n "$APP_STORE_CONNECT_KEY_ID" ]; then
-            echo "$APP_STORE_CONNECT_PRIVATE_KEY_BASE64" | base64 --decode > "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
-          else
-            echo "App Store Connect API key not fully configured, skipping key materialization"
-          fi
-      - name: Apply signing profiles
-        script: |
           xcode-project use-profiles
-      - name: Build signed IPA
-        script: |
-          xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
+          xcode-project build-ipa --project ios/App/App.xcodeproj --scheme App
+          node tools/verify-app.js build/ios/xcarchive/App.xcarchive/Products/Applications/App.app
     artifacts:
       - apps/zombie-squad-run-ios-webwrap/build/ios/ipa/*.ipa
-      - apps/zombie-squad-run-ios-webwrap/build/ios/archive/*.xcarchive
-      - apps/zombie-squad-run-ios-webwrap/release/**
+      - apps/zombie-squad-run-ios-webwrap/build/ios/xcarchive/*.xcarchive/dSYMs/**
+      - apps/zombie-squad-run-ios-webwrap/web/build-manifest.json
+      - apps/zombie-squad-run-ios-webwrap/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
     publishing:
       app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY_BASE64
-        key_id: $APP_STORE_CONNECT_KEY_ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        auth: integration
         submit_to_testflight: true
         submit_to_app_store: false
-      email:
-        recipients:
-          - $BUILD_NOTIFY_EMAIL
