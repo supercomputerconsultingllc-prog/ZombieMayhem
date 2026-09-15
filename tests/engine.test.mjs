@@ -131,11 +131,11 @@ test('horde fortifications absorb breaches and base destruction ends the run', (
   assert.ok(e.state.fortifications[0].hp < 100); assert.equal(e.state.baseHealth, 100);
   e.state.fortifications = []; e.state.baseHealth = 1; enemy(e, 480, 630); e.updateEnemies(1 / 60); assert.equal(e.state.gameOver, true);
 });
-for (const [index, template] of MISSION_TEMPLATES.entries()) test(`mission ${template.type} rewards and queues a tactical draft`, () => {
+for (const [index, template] of MISSION_TEMPLATES.entries()) test(`mission ${template.type} rewards credits without an extra tactical draft`, () => {
   const e = game(); e.setMission(index);
   const key = { kills: 'kills', distance: 'distance', elite: 'eliteKills', credits: 'creditsEarned', survive: 'time', boss: 'bosses' }[template.type];
   e.state[key] = e.state.mission.target; e.updateMission();
-  assert.equal(e.state.missionIndex, index + 1); assert.equal(e.state.pendingDrafts, 1); assert.equal(e.state.credits, template.reward);
+  assert.equal(e.state.missionIndex, index + 1); assert.equal(e.state.pendingDrafts, 0); assert.equal(e.state.credits, template.reward);
 });
 test('pools bound allocations, reset stale fields, and avoid double-release', () => {
   const pool = new ObjectPool(2), a = pool.acquire({ stale: true }), b = pool.acquire({});

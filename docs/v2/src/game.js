@@ -238,7 +238,8 @@ class ZombieMayhemV2 {
   }
   syncHud() {
     const s = this.engine.state, ui = this.ui;
-    for (const [id, value] of Object.entries({ squadStat: Math.ceil(s.squad), armorStat: Math.ceil(s.armor), waveStat: s.wave, distanceStat: `${Math.floor(s.distance)}m`, creditsStat: Math.floor(s.credits), levelStat: this.profile.accountLevel, fpsStat: `${this.renderer.fps} FPS`, modeLabel: MODES[this.engine.mode].label, objectiveText: this.engine.director.objective(), upgradePoints: `Wave ${s.wave + 1} draft` })) ui[id].textContent = value;
+    const draftLabel = s.pendingDrafts ? 'Upgrade incoming' : this.engine.mode === 'bossrush' ? 'Upgrade after boss' : `Wave ${s.wave + 3 - s.wave % 3} draft`;
+    for (const [id, value] of Object.entries({ squadStat: Math.ceil(s.squad), armorStat: Math.ceil(s.armor), waveStat: s.wave, distanceStat: `${Math.floor(s.distance)}m`, creditsStat: Math.floor(s.credits), levelStat: this.profile.accountLevel, fpsStat: `${this.renderer.fps} FPS`, modeLabel: MODES[this.engine.mode].label, objectiveText: this.engine.director.objective(), upgradePoints: draftLabel })) ui[id].textContent = value;
     const mission = s.mission;
     ui.missionTitle.textContent = mission.title; ui.missionText.textContent = mission.text.replace('{target}', mission.target);
     ui.missionReward.textContent = `+${mission.reward}`; ui.missionCount.textContent = `${Math.min(mission.target, Math.floor(s.missionValue))} / ${mission.target}`;

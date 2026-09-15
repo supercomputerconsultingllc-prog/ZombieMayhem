@@ -1,4 +1,4 @@
-import { WIDTH, HEIGHT, MODES, WEAPONS, ENEMIES, LOOT, FORMATIONS, SPECIALISTS, RUN_UPGRADES, EVOLUTIONS, MISSION_TEMPLATES, LIMITS } from './config.js';
+import { WIDTH, HEIGHT, MODES, WEAPONS, ENEMIES, LOOT, FORMATIONS, SPECIALISTS, RUN_UPGRADES, EVOLUTIONS, MISSION_TEMPLATES, LIMITS, BALANCE } from './config.js';
 import { SeededRandom, SpatialGrid, ObjectPool, EventBus, clamp, sweptCircleTime, sweptCircleHit } from './simulation.js';
 import { RunDirector } from './director.js';
 import { squadLayout, PROJECTILE_STYLES } from './presentation.js';
@@ -17,8 +17,8 @@ export class CombatEngine {
       credits: 0, creditsEarned: 0, kills: 0, eliteKills: 0, bosses: 0, fireTimer: 0, spawnTimer: .7,
       overdrive: 100, overdriveUntil: 0, heat: 0, runDamage: 1, fireRate: 1, runLuck: 0, incomingDamage: 1,
       selectedWeapon: 'rifle', formation: 'wedge', specialists: [], upgrades: {}, evolutions: {}, mastery: {},
-      nextWaveDistance: 260, waveSpawned: 0, waveResolved: 0, boss: null, bossDelay: 1,
-      pendingDrafts: 0, draft: null, nextHazard: 10, extracting: false, extractProgress: 0,
+      nextWaveDistance: 420, waveSpawned: 0, waveResolved: 0, boss: null, bossDelay: 1,
+      pendingDrafts: 0, draft: null, nextDraftAt: 0, nextLootAt: 0, nextHazard: 10, extracting: false, extractProgress: 0,
       enemies: [], bullets: [], particles: [], pickups: [], enemyProjectiles: [], hazards: [], fortifications: [],
       damageDealt: 0, shots: 0, hits: 0, combo: 0, bestCombo: 0, comboUntil: 0,
       missionIndex: 0, missionValue: 0, missionBase: 0, mission: null, volley: 0, aim: 0,
@@ -28,6 +28,8 @@ export class CombatEngine {
   }
   skill(id) { return this.profile.skills?.[id] || 0; }
   squadFireRate() { return 1 + Math.min(.45, Math.max(0, this.state.squad - 1) * .015); }
+  lootChance(elite = false) { return Math.min(BALANCE.lootChanceCap, BALANCE.lootChance + this.skill('scavenger_luck') * .004 + Math.min(.04, this.state.runLuck) + (elite ? .06 : 0)); }
+  queueDraft() { this.state.pendingDrafts = 1; }
   emit(type, data = {}) { this.events.emit({ type, ...data }); }
   spawn(group, values) {
     const entity = this.pools[group].acquire({ dead: false, id: ++this.sequence, ...values });
@@ -73,7 +75,7 @@ export class CombatEngine {
   stopMovement() { const s = this.state; s.inputX = s.inputY = 0; s.targetX = s.x; s.targetY = s.y; }
   overdrive() {
     const s = this.state; if (s.paused || s.gameOver || s.overdrive < 100) return false;
-    s.overdrive = 0; s.overdriveUntil = s.time + 5.5 * (1 + this.skill('engineer_overdrive') * .12);
+    s.overdrive = 0; s.overdriveUntil = s.time + 4.5 * (1 + this.skill('engineer_overdrive') * .12);
     if (s.tutorial === 1) { s.tutorial = 2; s.tutorialKills = s.kills; this.emit('tutorial'); }
     this.emit('overdrive'); return true;
   }
@@ -93,7 +95,7 @@ export class CombatEngine {
     const s = this.state, m = s.mission;
     s.missionValue = this.metric(m.type) - s.missionBase;
     if (s.missionValue >= m.target) {
-      this.credit(m.reward); s.pendingDrafts++; this.emit('mission', { reward: m.reward }); this.setMission(s.missionIndex + 1);
+      this.credit(m.reward); this.emit('mission', { reward: m.reward }); this.setMission(s.missionIndex + 1);
     }
   }
   credit(amount) { this.state.credits += amount; this.state.creditsEarned += amount; }
@@ -108,13 +110,13 @@ export class CombatEngine {
     }
     const base = ENEMIES[type];
     const elite = type !== 'boss' && this.rng.chance(Math.min(.03 + s.wave * .006, .22));
-    const scale = (1 + (s.wave - 1) * .1) * (elite ? 1.75 : 1);
+    const scale = 1.2 * (1 + (s.wave - 1) * .14) * (elite ? 1.75 : 1);
     const hp = base.hp * scale * (type === 'boss' && this.mode === 'bossrush' ? .75 : 1);
     const x = type === 'boss' ? WIDTH / 2 : this.rng.range(this.bounds.left, this.bounds.right), y = -base.size - this.rng.range(0, 90);
     const enemy = this.spawn('enemies', { ...base, type, originX: x, x, y, previousX: x, previousY: y,
       name: base.name, hp, maxHp: hp, armor: (base.armor || 0) * scale, size: base.size * (elite ? 1.1 : 1),
       damage: base.damage * (elite ? 1.5 : 1), reward: base.reward * (elite ? 2 : 1),
-      speed: base.speed * this.modeConfig.speed, color: base.color, elite, status: {}, phase: 1,
+      speed: base.speed * this.modeConfig.speed * (type === 'boss' ? 1 : Math.min(1.5, 1.12 + (s.wave - 1) * .018)), color: base.color, elite, status: {}, phase: 1,
       attackTimer: this.rng.range(1.5, 3), summonTimer: 6, hitUntil: 0 });
     if (enemy?.boss) {
       const chapter = this.director.chapter; enemy.name = chapter.boss; enemy.attack = chapter.attack;
@@ -168,7 +170,7 @@ export class CombatEngine {
       const travel = Math.min(distance, speed * dt, distance * (1 - Math.exp(-18 * dt)));
       if (distance > .01) { s.x += dx / distance * travel; s.y += dy / distance * travel; }
     }
-    if (s.time >= s.overdriveUntil) s.overdrive = Math.min(100, s.overdrive + dt * 6);
+    if (s.time >= s.overdriveUntil) s.overdrive = Math.min(100, s.overdrive + dt * 3.5);
     if (s.time >= s.comboUntil) s.combo = 0;
     this.director.tick(dt); if (s.gameOver) return;
     this.fireWeapon(); this.updateEnemies(dt); if (s.gameOver) return;
@@ -176,8 +178,8 @@ export class CombatEngine {
     this.updateEnemyProjectiles(dt); this.updateHazards(dt); this.updatePickups(dt);
     if (s.gameOver) return;
     this.updateMission();
-    if (s.tutorial === 2 && s.kills >= s.tutorialKills + 3) this.skipTutorial();
-    if (s.pendingDrafts > 0 && !s.draft && s.tutorial < 0) { s.pendingDrafts--; this.showUpgradeDraft(); }
+    if ((s.tutorial === 2 && s.kills >= s.tutorialKills + 3) || (s.tutorial >= 0 && s.time >= BALANCE.tutorialTimeout)) this.skipTutorial();
+    if (s.pendingDrafts > 0 && !s.draft && s.tutorial < 0 && s.time >= s.nextDraftAt) { s.pendingDrafts = 0; s.nextDraftAt = s.time + BALANCE.draftInterval; this.showUpgradeDraft(); }
     this.cleanup();
   }
   updateBullets(dt) {
@@ -269,7 +271,9 @@ export class CombatEngine {
     s.combo++; s.comboUntil = s.time + 3; s.bestCombo = Math.max(s.bestCombo, s.combo);
     this.credit(Math.round(enemy.reward * this.modeConfig.reward * (1 + this.skill('scavenger_credit') * .08) * (this.mode === 'horde' ? 1 + Math.min(.5, s.combo * .01) : 1)));
     this.emit('kill', { x: enemy.x, y: enemy.y, boss: !!enemy.boss, color: enemy.color });
-    if (enemy.boss || this.rng.chance(.09 + this.skill('scavenger_luck') * .03 + s.runLuck + (enemy.elite ? .2 : 0))) this.dropLoot(enemy.x, enemy.y);
+    if (enemy.boss || (s.time >= s.nextLootAt && this.rng.chance(this.lootChance(enemy.elite)))) {
+      this.dropLoot(enemy.x, enemy.y); s.nextLootAt = s.time + BALANCE.lootInterval;
+    }
     if (enemy.boss) {
       s.bosses++; s.boss = null; this.emit('bossDefeated', { name: enemy.name });
       s.enemyProjectiles.forEach(item => { item.dead = true; }); s.hazards.forEach(item => { if (item.type === 'strike') item.dead = true; });
@@ -373,7 +377,7 @@ export class CombatEngine {
     }
   }
   damageSquad(damage) {
-    const s = this.state; if (s.gameOver || s.tutorial >= 0 || s.time < s.invulnerableUntil) return;
+    const s = this.state; if (s.gameOver || (s.tutorial >= 0 && s.time < BALANCE.tutorialProtection) || s.time < s.invulnerableUntil) return;
     let amount = damage * s.incomingDamage / FORMATIONS[s.formation].armor * (1 - this.skill('medic_resist') * .05);
     const absorbed = Math.min(s.armor, amount * 7); s.armor -= absorbed; amount -= absorbed / 7;
     s.squad = Math.max(0, s.squad - Math.max(0, amount)); this.emit('hurt');
@@ -401,7 +405,7 @@ export class CombatEngine {
   }
   showUpgradeDraft() {
     const s = this.state;
-    const candidates = RUN_UPGRADES.filter(u => (s.upgrades[u.id] || 0) < (['incendiary', 'cryo'].includes(u.id) ? 1 : 3)).map(u => ({ ...u }));
+    const candidates = RUN_UPGRADES.filter(u => (s.upgrades[u.id] || 0) < (['incendiary', 'cryo'].includes(u.id) ? 1 : u.id === 'scavenger' ? 4 : 3)).map(u => ({ ...u }));
     for (const [id, specialist] of Object.entries(SPECIALISTS)) if (!s.specialists.includes(id)) candidates.push({ ...specialist, id: `specialist:${id}`, tag: 'Specialist' });
     if (s.wave >= 3 || s.kills >= 35) for (const [weapon, branches] of Object.entries(EVOLUTIONS)) {
       if (s.evolutions[weapon] || !(this.profile.unlockedWeapons.includes(weapon) || this.profile.accountLevel >= WEAPONS[weapon].unlock)) continue;
@@ -426,7 +430,7 @@ export class CombatEngine {
       if (id === 'rapidcycle') s.fireRate = Math.min(2.2, s.fireRate * 1.14);
       if (id === 'plates') s.armor = Math.min(500, s.armor + 45);
       if (id === 'reinforcements') s.squad = Math.min(40, s.squad + 3);
-      if (id === 'scavenger') s.runLuck += .15;
+      if (id === 'scavenger') s.runLuck = Math.min(.04, s.runLuck + .01);
       if (id === 'glasscannon') { s.runDamage = Math.min(8, s.runDamage * 1.4); s.incomingDamage *= 1.25; }
       if (id === 'repair') s.baseHealth = Math.min(100, s.baseHealth + 30);
       if (id === 'fortify') {

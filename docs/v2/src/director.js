@@ -11,11 +11,10 @@ export class RunDirector {
   nextWave() {
     const e = this.engine, s = e.state;
     s.wave++; s.waveSpawned = 0; s.waveResolved = 0; s.waveStart = s.time;
-    s.nextWaveDistance = s.distance + 250 + s.wave * 10;
+    s.nextWaveDistance = s.distance + 400 + s.wave * 20;
     s.squad = Math.min(40, s.squad + e.skill('medic_recovery') + (s.specialists.includes('medic') ? 1 : 0));
     if (s.specialists.includes('engineer')) s.armor = Math.min(500, s.armor + 6);
-    if (e.mode === 'horde') s.pendingDrafts++;
-    else if (e.mode !== 'bossrush') s.pendingDrafts++;
+    if (e.mode !== 'bossrush' && s.wave % 3 === 0) e.queueDraft();
     e.emit('wave', { wave: s.wave, biome: BIOMES[this.biomeIndex].name });
   }
   bossDefeated() {
@@ -26,7 +25,7 @@ export class RunDirector {
       s.enemies.forEach(enemy => { if (!enemy.boss) enemy.dead = true; });
       e.emit('chapter', { ...this.chapter, number: s.bosses + 1 });
     } else if (e.mode === 'bossrush') {
-      s.squad = Math.min(40, s.squad + 1); s.pendingDrafts++; s.bossDelay = 2;
+      s.squad = Math.min(40, s.squad + 1); e.queueDraft(); s.bossDelay = 2;
       s.wave = s.bosses + 1;
       s.enemies.forEach(enemy => { enemy.dead = true; });
     }
@@ -43,7 +42,7 @@ export class RunDirector {
       if (s.waveSpawned >= quota && !s.enemies.some(enemy => !enemy.dead)) this.nextWave();
       if (s.waveSpawned < 12 + s.wave * 4 && s.spawnTimer <= 0) {
         e.spawnEnemy(s.wave % 4 === 0 && s.waveSpawned === 0 ? 'boss' : null);
-        s.waveSpawned++; s.spawnTimer = Math.max(.3, 1 - s.wave * .03);
+        s.waveSpawned++; s.spawnTimer = Math.max(.25, .8 - s.wave * .03);
       }
     } else {
       if (!s.boss && s.distance >= s.nextWaveDistance) {
@@ -52,7 +51,7 @@ export class RunDirector {
         } else this.nextWave();
       }
       if (!s.boss && s.spawnTimer <= 0) {
-        e.spawnEnemy(); s.spawnTimer = clamp(1.1 - s.wave * .035, .3, 1.1) / e.modeConfig.spawn;
+        e.spawnEnemy(); s.spawnTimer = clamp(.85 - s.wave * .035, .25, .85) / e.modeConfig.spawn;
       }
       if (e.mode === 'extraction' && s.extracting) {
         s.extractProgress += dt;

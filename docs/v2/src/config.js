@@ -1,4 +1,5 @@
-export const VERSION = '2.0.0-beta.5';
+export const VERSION = '2.0.0-beta.6';
+export const BALANCE = Object.freeze({ lootChance: .035, lootChanceCap: .14, lootInterval: 6, draftInterval: 30, tutorialProtection: 8, tutorialTimeout: 25 });
 export const SAVE_VERSION = 4;
 export const SAVE_KEY = 'zombieMayhemV2Profile';
 export const SETTINGS_KEY = 'zombieMayhemV2Settings';
@@ -30,7 +31,7 @@ export const RUN_UPGRADES = [
   { id: 'rapidcycle', name: 'Rapid Cycle', detail: '+14% fire rate', tag: 'Offense' },
   { id: 'plates', name: 'Ceramic Plates', detail: '+45 armor', tag: 'Defense' },
   { id: 'reinforcements', name: 'Reinforcements', detail: '+3 survivors', tag: 'Squad' },
-  { id: 'scavenger', name: 'Lucky Scavenger', detail: '+15% loot chance', tag: 'Economy' },
+  { id: 'scavenger', name: 'Lucky Scavenger', detail: '+1 percentage point loot chance (max +4)', tag: 'Economy' },
   { id: 'incendiary', name: 'Incendiary Rounds', detail: 'All bullets ignite targets', tag: 'Status' },
   { id: 'cryo', name: 'Cryo Payload', detail: 'Critical hits slow targets', tag: 'Status' },
   { id: 'glasscannon', name: 'Last Magazine', detail: '+40% damage, incoming damage +25%', tag: 'Cursed' }
@@ -112,7 +113,7 @@ export const SKILL_TREES = {
   ]},
   scavenger: { label: 'Scavenger', nodes: [
     { id: 'scavenger_credit', name: 'Deep Pockets', detail: '+8% credits', max: 5 },
-    { id: 'scavenger_luck', name: 'Lucky Find', detail: '+8% loot chance', max: 5 },
+    { id: 'scavenger_luck', name: 'Lucky Find', detail: '+0.4 percentage points loot chance', max: 5 },
     { id: 'scavenger_mastery', name: 'Fast Learner', detail: '+10% mastery XP', max: 4 }
   ]},
   engineer: { label: 'Engineer', nodes: [
@@ -124,9 +125,9 @@ export const SKILL_TREES = {
 
 export const LOOT = [
   { rarity: 'common', name: 'Ammo Cache', weight: 48, color: '#cbd5e1', apply: { credits: 35 } },
-  { rarity: 'uncommon', name: 'Armor Plates', weight: 28, color: '#4ade80', apply: { armor: 24 } },
-  { rarity: 'rare', name: 'Weapon Mod', weight: 15, color: '#53c5ff', apply: { damage: .08 } },
-  { rarity: 'epic', name: 'Squad Beacon', weight: 7, color: '#c084fc', apply: { squad: 3 } },
+  { rarity: 'uncommon', name: 'Armor Plates', weight: 28, color: '#4ade80', apply: { armor: 14 } },
+  { rarity: 'rare', name: 'Weapon Mod', weight: 15, color: '#53c5ff', apply: { damage: .04 } },
+  { rarity: 'epic', name: 'Squad Beacon', weight: 7, color: '#c084fc', apply: { squad: 2 } },
   { rarity: 'legendary', name: 'Overdrive Cell', weight: 2, color: '#f6d365', apply: { ability: 25 } }
 ];
 
